@@ -1,0 +1,17 @@
+{
+  "profile_id": "default",
+  "description": "Neutral profile. The Weight and Trust Engine is active but contributes zero to every signal. Safe baseline that preserves existing reranker behavior unchanged.",
+  "mode": "balanced",
+  "authenticity_weights": {},
+  "isnad_strength_multiplier": 0.0,
+  "corroboration_per_count": 0.0,
+  "corroboration_cap": 5,
+  "ijma_weights": {},
+  "era_weights": {},
+  "source_distance_penalty": 0.0,
+  "scholar_authority_multiplier": 0.0,
+  "madhhab_preferences": {},
+  "methodology_preferences": {},
+  "unknown_penalty": 0.0,
+  "strictness_threshold": null
+}

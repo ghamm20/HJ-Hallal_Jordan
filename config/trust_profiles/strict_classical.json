@@ -1,0 +1,36 @@
+{
+  "profile_id": "strict_classical",
+  "description": "Strict classical research mode. Heavy preference for primary texts and classical/post-classical authorities with known isnads and consensus level. Penalizes unknown signals (encourages richer metadata) and applies a strictness threshold so weakly attested material can be filtered by the reranker.",
+  "mode": "strict",
+  "authenticity_weights": {
+    "sahih": 0.45,
+    "hasan": 0.2,
+    "daif": -0.65,
+    "mawdu": -2.5
+  },
+  "isnad_strength_multiplier": 0.35,
+  "corroboration_per_count": 0.06,
+  "corroboration_cap": 5,
+  "ijma_weights": {
+    "ijma": 0.45,
+    "majority": 0.18,
+    "minority": -0.1,
+    "isolated": -0.3
+  },
+  "era_weights": {
+    "primary": 0.5,
+    "classical": 0.3,
+    "post_classical": 0.1,
+    "modern": -0.15,
+    "contemporary": -0.35
+  },
+  "source_distance_penalty": 0.28,
+  "scholar_authority_multiplier": 0.25,
+  "madhhab_preferences": {},
+  "methodology_preferences": {
+    "rigorous_isnad": 0.2,
+    "classical_usul": 0.2
+  },
+  "unknown_penalty": 0.08,
+  "strictness_threshold": -0.4
+}

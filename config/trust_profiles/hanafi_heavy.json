@@ -1,0 +1,42 @@
+{
+  "profile_id": "hanafi_heavy",
+  "description": "Hanafi-weighted research profile. Boosts Hanafi madhhab sources, classical and post-classical fiqh authorities (when the Hanafi school's codification matured), and recognized Hanafi methodology tags. Does not silence other madhhabs — they remain in results, just weighted lower.",
+  "mode": "balanced",
+  "authenticity_weights": {
+    "sahih": 0.25,
+    "hasan": 0.1,
+    "daif": -0.25,
+    "mawdu": -1.6
+  },
+  "isnad_strength_multiplier": 0.18,
+  "corroboration_per_count": 0.04,
+  "corroboration_cap": 5,
+  "ijma_weights": {
+    "ijma": 0.2,
+    "majority": 0.08,
+    "minority": -0.02,
+    "isolated": -0.08
+  },
+  "era_weights": {
+    "primary": 0.15,
+    "classical": 0.25,
+    "post_classical": 0.2,
+    "modern": 0.0,
+    "contemporary": -0.04
+  },
+  "source_distance_penalty": 0.06,
+  "scholar_authority_multiplier": 0.2,
+  "madhhab_preferences": {
+    "hanafi": 0.45,
+    "shafii": -0.05,
+    "maliki": -0.05,
+    "hanbali": -0.05
+  },
+  "methodology_preferences": {
+    "hanafi_usul": 0.25,
+    "marghinani": 0.15,
+    "ibn_abidin": 0.15
+  },
+  "unknown_penalty": 0.02,
+  "strictness_threshold": null
+}

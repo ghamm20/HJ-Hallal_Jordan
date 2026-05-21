@@ -15,6 +15,8 @@ from app.reasoning.authority_policy import (
     resolve_source_classification,
 )
 from app.reasoning.intent_router import QueryIntent
+from app.reasoning.trust_engine import load_profile as load_trust_profile
+from app.reasoning.trust_engine import score as compute_trust_score
 from app.retrieval.families import build_duplicate_family_key, normalize_title_key
 
 REPETITIVE_STOPWORDS = {
@@ -171,12 +173,23 @@ def rerank_candidates(
     top_k: int = 5,
     query_intent: QueryIntent | None = None,
     answer_mode: str = "research",
+    trust_profile_id: str = "default",
 ) -> list[dict[str, Any]]:
     authority_policy = resolve_authority_policy(
         query_intent=query_intent,
         answer_mode=answer_mode,
         selected_madhhab=selected_madhhab,
     )
+
+    # Weight and Trust Engine pre-pass. Computes a transparent breakdown
+    # per candidate and attaches it for downstream rendering. The default
+    # profile contributes zero, so behavior only changes when a non-default
+    # trust_profile_id is selected.
+    trust_profile = load_trust_profile(trust_profile_id)
+    for candidate in candidates:
+        breakdown = compute_trust_score(candidate, profile=trust_profile)
+        candidate["_trust_breakdown"] = breakdown.to_dict()
+        candidate["_trust_bonus"] = breakdown.total
     policy_priority = {
         name: index
         for index, name in enumerate(
@@ -305,6 +318,7 @@ def _effective_relevance_score(
     score = float(candidate.get("retrieval_score", 0))
     score += _loader_hint_bonus(candidate)
     score += _family_preference_bonus(candidate)
+    score += float(candidate.get("_trust_bonus", 0.0))
     score += authority_bonus(
         candidate,
         policy=authority_policy,

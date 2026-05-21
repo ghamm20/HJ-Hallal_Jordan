@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://halal-jordan.local/schemas/trust_profile.schema.json",
+  "title": "Halal Jordan Trust Profile",
+  "description": "Configurable weighting profile for the Weight and Trust Engine. Defines how structured signals (authenticity, isnad strength, scholar authority, corroboration, ijma, era, source distance, methodology) contribute to a transparent, additive trust score. Unknown signals never inflate scores.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["profile_id", "description", "mode"],
+  "properties": {
+    "profile_id": {
+      "type": "string",
+      "description": "Stable identifier used to select the profile at runtime.",
+      "pattern": "^[a-z0-9_]+$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description: what this profile prioritizes and WHY. Required by the charter's transparency rule."
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["strict", "balanced", "exploratory"],
+      "description": "Coarse posture. Strict profiles tend to penalize unknown signals and apply hard thresholds; exploratory profiles are looser."
+    },
+    "authenticity_weights": {
+      "type": "object",
+      "description": "Per-grade weights applied when a hadith authenticity grade is known. Keys are normalized grades.",
+      "additionalProperties": { "type": "number" },
+      "propertyNames": {
+        "enum": ["sahih", "hasan", "daif", "mawdu"]
+      }
+    },
+    "isnad_strength_multiplier": {
+      "type": "number",
+      "description": "Multiplied by the observed isnad_strength (0..1) to produce the contribution."
+    },
+    "corroboration_per_count": {
+      "type": "number",
+      "description": "Weight added per corroborating independent source, up to corroboration_cap."
+    },
+    "corroboration_cap": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Maximum corroboration count counted toward the score."
+    },
+    "ijma_weights": {
+      "type": "object",
+      "description": "Per-level weights for consensus strength.",
+      "additionalProperties": { "type": "number" },
+      "propertyNames": {
+        "enum": ["ijma", "majority", "minority", "isolated"]
+      }
+    },
+    "era_weights": {
+      "type": "object",
+      "description": "Per-era weights for historical period.",
+      "additionalProperties": { "type": "number" },
+      "propertyNames": {
+        "enum": ["primary", "classical", "post_classical", "modern", "contemporary"]
+      }
+    },
+    "source_distance_penalty": {
+      "type": "number",
+      "description": "Per-step penalty as a source moves further from a primary text (0 = primary, 1 = manual/commentary, 2 = fatwa/transcript)."
+    },
+    "scholar_authority_multiplier": {
+      "type": "number",
+      "description": "Multiplied by an observed scholar_authority score (0..1)."
+    },
+    "madhhab_preferences": {
+      "type": "object",
+      "description": "Per-madhhab weights. Applied only when a source's madhhab is known.",
+      "additionalProperties": { "type": "number" }
+    },
+    "methodology_preferences": {
+      "type": "object",
+      "description": "Per-tag weights for methodology tags carried in candidate metadata (e.g., rigorous_isnad, literalist, spiritual_emphasis).",
+      "additionalProperties": { "type": "number" }
+    },
+    "unknown_penalty": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Small per-missing-signal penalty. Encourages richer ingestion metadata without ever inflating scores when signals are unknown."
+    },
+    "strictness_threshold": {
+      "type": ["number", "null"],
+      "description": "If set, candidates scoring below this threshold are flagged as below_strictness_threshold so the reranker can filter or hard-downweight them."
+    }
+  }
+}

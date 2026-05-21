@@ -1,0 +1,33 @@
+{
+  "profile_id": "exploratory",
+  "description": "Loose exploratory mode for surveying disagreement. Mild preferences only, allows minority and isolated positions to surface, small or zero penalty for unknown signals. Useful for comparative study where breadth matters more than authoritative ranking.",
+  "mode": "exploratory",
+  "authenticity_weights": {
+    "sahih": 0.15,
+    "hasan": 0.08,
+    "daif": -0.1,
+    "mawdu": -1.0
+  },
+  "isnad_strength_multiplier": 0.08,
+  "corroboration_per_count": 0.02,
+  "corroboration_cap": 4,
+  "ijma_weights": {
+    "ijma": 0.1,
+    "majority": 0.05,
+    "minority": 0.0,
+    "isolated": -0.02
+  },
+  "era_weights": {
+    "primary": 0.1,
+    "classical": 0.08,
+    "post_classical": 0.06,
+    "modern": 0.04,
+    "contemporary": 0.02
+  },
+  "source_distance_penalty": 0.02,
+  "scholar_authority_multiplier": 0.05,
+  "madhhab_preferences": {},
+  "methodology_preferences": {},
+  "unknown_penalty": 0.0,
+  "strictness_threshold": null
+}

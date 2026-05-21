@@ -1,0 +1,36 @@
+{
+  "profile_id": "hadith_focused",
+  "description": "Prioritizes hadith authentication. Strongly rewards sahih and hasan gradings, rewards strong isnads and corroboration across independent chains, heavily penalizes daif and fabricated narrations. Mild era preference for the classical authenticator generation.",
+  "mode": "strict",
+  "authenticity_weights": {
+    "sahih": 0.55,
+    "hasan": 0.25,
+    "daif": -0.55,
+    "mawdu": -2.0
+  },
+  "isnad_strength_multiplier": 0.45,
+  "corroboration_per_count": 0.08,
+  "corroboration_cap": 6,
+  "ijma_weights": {
+    "ijma": 0.25,
+    "majority": 0.1,
+    "minority": -0.05,
+    "isolated": -0.15
+  },
+  "era_weights": {
+    "primary": 0.35,
+    "classical": 0.2,
+    "post_classical": 0.05,
+    "modern": -0.02,
+    "contemporary": -0.05
+  },
+  "source_distance_penalty": 0.18,
+  "scholar_authority_multiplier": 0.15,
+  "madhhab_preferences": {},
+  "methodology_preferences": {
+    "rigorous_isnad": 0.18,
+    "hadith_specialist": 0.22
+  },
+  "unknown_penalty": 0.04,
+  "strictness_threshold": -0.6
+}
