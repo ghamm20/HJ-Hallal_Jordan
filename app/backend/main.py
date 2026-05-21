@@ -179,6 +179,48 @@ def create_app(
         )
         return {"profile_id": current_id, "profile": metadata}
 
+    @app.get("/ask", response_class=HTMLResponse)
+    async def ask_ui() -> HTMLResponse:
+        """The simplest possible front door.
+
+        One question box, one button, profile chip linking to /profiles.
+        Retrieval-first — works without Ollama. Public, no auth. This is
+        the "give me a button" surface for the average user.
+        """
+
+        return HTMLResponse(
+            _ask_html(
+                current_profile_id=str(
+                    app.state.ops.config_store.load_effective().trust_profile_id
+                    or "default"
+                ),
+            )
+        )
+
+    @app.post("/api/ask")
+    async def ask_endpoint(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+        """Retrieval-first public ask endpoint.
+
+        Always performs retrieval; the active trust profile drives the
+        ranking. Returns the rendered plain-text answer plus a structured
+        payload (citations + Evidence Ladder + Confidence Taxonomy) so
+        the page can present whichever shape it prefers.
+        """
+
+        question = str((payload or {}).get("question") or "").strip()
+        if not question:
+            raise HTTPException(status_code=400, detail="question required")
+        selected_madhhab = str(
+            (payload or {}).get("selected_madhhab") or "not_specified"
+        ).strip().lower() or "not_specified"
+
+        return _public_ask(
+            app.state.ops,
+            repo_root=root,
+            question=question,
+            selected_madhhab=selected_madhhab,
+        )
+
     @app.post("/api/profile/set")
     async def profile_set(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
         """Set the active trust/scholar methodology profile.
@@ -7356,6 +7398,343 @@ def _manager_scholar_profile_map(repo_root: Path) -> dict[str, dict[str, Any]]:
         }
         for scholar_id, profile in profiles.items()
     }
+
+
+def _public_ask(
+    ops: Any,
+    *,
+    repo_root: Path,
+    question: str,
+    selected_madhhab: str,
+) -> dict[str, Any]:
+    """Run retrieval + render an answer using the same structural layers
+    the full chat pipeline uses. No LLM call required — works in any
+    environment, including fresh laptops without Ollama running.
+
+    The Trust Engine, Evidence Ladder, Confidence Taxonomy, and (when
+    applicable) Methodology Disclosure all surface in the rendered
+    output exactly as they would in a synthesized answer.
+    """
+
+    from app.citations.renderer import render_answer
+    from app.reasoning.answer_grounding import AnswerEvidenceModel, GroundedSource
+    from app.reasoning.confidence_taxonomy import classify_confidence
+    from app.reasoning.evidence_ladder import classify_sources
+    from app.reasoning.trust_engine import list_profiles_with_metadata
+    from app.retrieval.pipeline import RetrievalPipeline
+
+    # Retrieval pipeline reads trust_profile_id from runtime config and
+    # attaches the breakdown to each snippet automatically.
+    pipeline = RetrievalPipeline(repo_root=repo_root)
+    debug = pipeline.retrieve_with_debug(
+        question,
+        selected_madhhab=selected_madhhab,
+        top_k=6,
+        answer_mode="research",
+    )
+
+    grounded = [_grounded_source_from_snippet(snippet) for snippet in debug.snippets]
+    evidence_model = AnswerEvidenceModel(
+        primary_evidence=[g for g in grounded if g.source_classification in {"quran", "hadith"}],
+        spiritual_guidance=[g for g in grounded if g.source_classification == "tasawwuf_text"],
+        hanafi_authority=[],
+        other_views=[],
+        supporting_commentary=[g for g in grounded if g.source_classification == "commentary"],
+        teaching_explanation=[],
+        modern_application=[g for g in grounded if g.source_classification == "fatwa"],
+        sources=grounded,
+        disagreement_notes=[],
+        uncertainty_notes=(
+            ["No sources were retrieved for this question."] if not grounded else []
+        ),
+        intent_id=debug.query_intent.intent_id,
+        suppress_synthesis=True,
+        authority_policy_id="research",
+        comparison_positions=[],
+        evidence_backfill_applied=False,
+        evidence_backfill_buckets=[],
+        source_layer_composition={},
+        metadata_completeness={},
+        ocr_usage={},
+    )
+
+    minimal_answer = {
+        "answer_mode": "source_only",
+        "selected_madhhab": selected_madhhab,
+        "direct_answer": (
+            "Here is what local sources say. This is research output — "
+            "the engine surfaces evidence and weighting transparently, "
+            "rather than issuing a ruling."
+            if grounded
+            else "No local sources matched this question. Try rephrasing, "
+            "or check the corpus stats on the admin page."
+        ),
+    }
+    rendered_text = render_answer(minimal_answer, evidence_model)
+
+    # Structured payload for the page to display however it likes.
+    ladder = classify_sources(grounded)
+    confidence = classify_confidence(evidence_model=evidence_model, answer=minimal_answer)
+
+    profile_meta = next(
+        (
+            entry
+            for entry in list_profiles_with_metadata(repo_root=repo_root)
+            if entry["profile_id"] == debug.trust_profile_id
+        ),
+        None,
+    )
+
+    return {
+        "question": question,
+        "selected_madhhab": selected_madhhab,
+        "rendered_text": rendered_text,
+        "profile_id": debug.trust_profile_id,
+        "profile": profile_meta,
+        "evidence_ladder": [
+            {
+                "tier_id": tier.tier_id,
+                "rank": tier.rank,
+                "label": tier.label,
+                "count": len(ladder.entries_for(tier.tier_id)),
+            }
+            for tier in ladder.populated_tiers()
+        ],
+        "confidence": confidence.to_dict() if confidence else None,
+        "source_count": len(grounded),
+        "trust_diagnostics": debug.trust_diagnostics,
+    }
+
+
+def _grounded_source_from_snippet(snippet: dict[str, str]) -> Any:
+    """Build a GroundedSource from a retrieval snippet dict.
+
+    Snippets are str-typed for transport; GroundedSource fields are
+    str or bool. Trust breakdown rides as JSON in the snippet and
+    flows straight through.
+    """
+
+    from app.reasoning.answer_grounding import GroundedSource
+
+    def _b(value: str) -> bool:
+        return str(value or "").strip().lower() in {"true", "1", "yes"}
+
+    return GroundedSource(
+        title=snippet.get("title", ""),
+        human_title=snippet.get("title", ""),
+        source_classification=snippet.get("source_classification") or snippet.get("source_type", ""),
+        source_type_label="",
+        evidence_bucket="primary_evidence",
+        role=snippet.get("role", ""),
+        domain=snippet.get("domain", ""),
+        authority_level=snippet.get("authority_level", "") or snippet.get("hadith_grade", ""),
+        reference=snippet.get("reference", ""),
+        section_label=snippet.get("section_label", ""),
+        quote=snippet.get("quote", ""),
+        madhhab=snippet.get("madhhab", ""),
+        source_path=snippet.get("source_path", ""),
+        collection=snippet.get("collection", ""),
+        author=snippet.get("author", ""),
+        source_family=snippet.get("source_family", ""),
+        canonical_family=snippet.get("canonical_family", ""),
+        language=snippet.get("language", ""),
+        hierarchy_label=snippet.get("hierarchy_label", ""),
+        book=snippet.get("book", ""),
+        chapter=snippet.get("chapter", ""),
+        section=snippet.get("section", ""),
+        document_kind=snippet.get("document_kind", ""),
+        source_role_boundary=snippet.get("source_role_boundary", ""),
+        source_lineage=snippet.get("source_lineage", ""),
+        commentary_target="",
+        fatwa_authority="",
+        legal_role="",
+        legal_role_label="",
+        ocr_derived=_b(snippet.get("ocr_derived", "")),
+        ocr_backend=snippet.get("ocr_backend", ""),
+        ocr_status=snippet.get("ocr_status", ""),
+        ocr_confidence=snippet.get("ocr_confidence", ""),
+        extraction_status=snippet.get("extraction_status", ""),
+        extraction_quality=snippet.get("extraction_quality", ""),
+        scholar_attribution_match="",
+        trust_breakdown_json=snippet.get("_trust_breakdown_json", ""),
+    )
+
+
+def _ask_html(*, current_profile_id: str) -> str:
+    """Self-contained single-page UI for the public /ask endpoint.
+
+    Big question box, one button, profile chip linking to /profiles, an
+    answer pane that renders the structural layers verbatim. No JS
+    framework, no external assets. Works offline, on phones, on
+    laptops, on tablets.
+    """
+
+    import html as _html
+
+    profile_label = _html.escape(_humanize_profile_id(current_profile_id))
+    return f"""<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Halal Jordan</title>
+    <style>
+      * {{ box-sizing: border-box; }}
+      body {{
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        margin: 0;
+        padding: 1.5rem 1rem 4rem;
+        background: #f3ead8;
+        color: #2f271f;
+        line-height: 1.55;
+      }}
+      .container {{ max-width: 48rem; margin: 0 auto; }}
+      header {{ padding: 0.5rem 0 1rem; }}
+      h1 {{ margin: 0 0 0.25rem; font-size: 1.6rem; }}
+      header p {{ margin: 0; color: #6c5f4e; font-size: 0.95rem; }}
+      .profile-chip {{
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.3rem 0.7rem;
+        margin-top: 0.6rem;
+        background: rgba(255, 250, 241, 0.94);
+        border: 1px solid rgba(120, 95, 60, 0.25);
+        border-radius: 999px;
+        text-decoration: none;
+        color: #2f271f;
+        font-size: 0.85rem;
+      }}
+      .profile-chip:hover {{ border-color: rgba(120, 95, 60, 0.55); }}
+      .profile-chip strong {{ color: #6c5f4e; font-weight: 600; }}
+      form {{ margin: 1.25rem 0 0; display: grid; gap: 0.75rem; }}
+      label {{ font-weight: 600; font-size: 0.95rem; }}
+      textarea {{
+        width: 100%;
+        min-height: 5rem;
+        padding: 0.8rem 1rem;
+        border-radius: 12px;
+        border: 2px solid rgba(120, 95, 60, 0.25);
+        font: inherit;
+        background: rgba(255, 252, 246, 0.96);
+        resize: vertical;
+      }}
+      textarea:focus {{ outline: none; border-color: #b8862c; }}
+      .row {{ display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }}
+      select {{
+        padding: 0.55rem 0.7rem;
+        border-radius: 10px;
+        border: 1px solid rgba(120, 95, 60, 0.25);
+        background: rgba(255, 252, 246, 0.96);
+        font: inherit;
+      }}
+      button.primary {{
+        padding: 0.7rem 1.6rem;
+        border-radius: 999px;
+        border: none;
+        background: #b8862c;
+        color: white;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }}
+      button.primary:hover {{ background: #9d731f; }}
+      button.primary:disabled {{ background: #b9b2a4; cursor: progress; }}
+      #answer {{
+        margin-top: 1.5rem;
+        padding: 1rem 1.25rem;
+        background: rgba(255, 252, 246, 0.96);
+        border-radius: 14px;
+        border: 1px solid rgba(120, 95, 60, 0.2);
+        white-space: pre-wrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.9rem;
+        line-height: 1.55;
+      }}
+      #answer.empty {{ color: #6c5f4e; font-family: inherit; font-style: italic; }}
+      .hint {{ font-size: 0.8rem; color: #6c5f4e; margin-top: 0.25rem; }}
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Halal Jordan</h1>
+        <p>Ask a question. The system finds local sources and shows you the
+        evidence transparently — not a ruling.</p>
+        <a class="profile-chip" href="/profiles">
+          <strong>Active profile:</strong>
+          <span id="profile-label">{profile_label}</span>
+          <span aria-hidden="true">›</span>
+        </a>
+      </header>
+      <form id="ask-form">
+        <label for="question">Your question</label>
+        <textarea id="question" name="question" placeholder="e.g. What do hadith say about sincerity of intention?"></textarea>
+        <div class="row">
+          <select id="madhhab" name="madhhab">
+            <option value="not_specified">Madhhab: any</option>
+            <option value="hanafi">Hanafi</option>
+            <option value="shafii">Shafi'i</option>
+            <option value="maliki">Maliki</option>
+            <option value="hanbali">Hanbali</option>
+            <option value="compare_all">Compare all four</option>
+          </select>
+          <button class="primary" type="submit">Ask</button>
+        </div>
+        <p class="hint">Retrieval-only mode — works in any environment.
+        Full chat synthesis is at <a href="/">the main UI</a> if you need it.</p>
+      </form>
+      <pre id="answer" class="empty">Your answer will appear here.</pre>
+    </div>
+    <script>
+      (function () {{
+        var form = document.getElementById("ask-form");
+        var answerEl = document.getElementById("answer");
+        var btn = form.querySelector("button.primary");
+        form.addEventListener("submit", function (e) {{
+          e.preventDefault();
+          var question = document.getElementById("question").value.trim();
+          var madhhab = document.getElementById("madhhab").value;
+          if (!question) {{
+            answerEl.textContent = "Please enter a question.";
+            answerEl.className = "empty";
+            return;
+          }}
+          btn.disabled = true;
+          var oldText = btn.textContent;
+          btn.textContent = "Thinking…";
+          answerEl.textContent = "Searching local sources…";
+          answerEl.className = "empty";
+          fetch("/api/ask", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{ question: question, selected_madhhab: madhhab }}),
+          }})
+            .then(function (r) {{
+              if (!r.ok) return r.text().then(function (t) {{ throw new Error(t || ("HTTP " + r.status)); }});
+              return r.json();
+            }})
+            .then(function (data) {{
+              answerEl.textContent = data.rendered_text || "(no output)";
+              answerEl.className = "";
+              if (data.profile_id) {{
+                var label = data.profile_id.replace(/_/g, " ").replace(/\\b\\w/g, function (c) {{ return c.toUpperCase(); }});
+                document.getElementById("profile-label").textContent = label;
+              }}
+            }})
+            .catch(function (err) {{
+              answerEl.textContent = "Error: " + (err.message || err);
+              answerEl.className = "empty";
+            }})
+            .finally(function () {{
+              btn.disabled = false;
+              btn.textContent = oldText;
+            }});
+        }});
+      }})();
+    </script>
+  </body>
+</html>"""
 
 
 def _profiles_html(*, profiles: list[dict[str, Any]], current_profile_id: str) -> str:
