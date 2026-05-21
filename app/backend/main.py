@@ -22,6 +22,7 @@ from app.backend.permissions import (
     require_permission,
 )
 from app.reasoning.scholar_resolver import load_scholar_profiles
+from app.reasoning.trust_engine import list_profiles_with_metadata
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_ASSETS_DIR = REPO_ROOT / "app" / "frontend" / "assets"
@@ -138,6 +139,69 @@ def create_app(
     @app.get("/admin", response_class=HTMLResponse)
     async def admin_ui() -> HTMLResponse:
         return HTMLResponse(_admin_html())
+
+    @app.get("/profiles", response_class=HTMLResponse)
+    async def profiles_ui() -> HTMLResponse:
+        """One-page button selector for the active reasoning profile.
+
+        Public on purpose: switching the active trust/scholar methodology
+        profile is a low-risk, transparent operation that the charter
+        wants accessible — "a button" — for the average user.
+        """
+
+        return HTMLResponse(
+            _profiles_html(
+                profiles=list_profiles_with_metadata(repo_root=root),
+                current_profile_id=str(
+                    app.state.ops.config_store.load_effective().trust_profile_id
+                    or "default"
+                ),
+            )
+        )
+
+    @app.get("/api/profile/list")
+    async def profile_list() -> dict[str, Any]:
+        return {"profiles": list_profiles_with_metadata(repo_root=root)}
+
+    @app.get("/api/profile/current")
+    async def profile_current() -> dict[str, Any]:
+        current_id = str(
+            app.state.ops.config_store.load_effective().trust_profile_id
+            or "default"
+        )
+        metadata = next(
+            (
+                entry
+                for entry in list_profiles_with_metadata(repo_root=root)
+                if entry["profile_id"] == current_id
+            ),
+            None,
+        )
+        return {"profile_id": current_id, "profile": metadata}
+
+    @app.post("/api/profile/set")
+    async def profile_set(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+        """Set the active trust/scholar methodology profile.
+
+        Intentionally narrow: this endpoint can only flip
+        ``trust_profile_id`` and only to a known profile. Other config
+        fields remain behind the authenticated admin endpoint.
+        """
+
+        requested = str((payload or {}).get("profile_id") or "").strip()
+        if not requested:
+            raise HTTPException(status_code=400, detail="profile_id required")
+        available = {entry["profile_id"] for entry in list_profiles_with_metadata(repo_root=root)}
+        if requested not in available:
+            raise HTTPException(
+                status_code=404,
+                detail=f"unknown profile_id: {requested}. Available: {sorted(available)}",
+            )
+        try:
+            app.state.ops.config_store.update({"trust_profile_id": requested})
+        except (ValidationError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {"ok": True, "profile_id": requested}
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
@@ -7292,6 +7356,227 @@ def _manager_scholar_profile_map(repo_root: Path) -> dict[str, dict[str, Any]]:
         }
         for scholar_id, profile in profiles.items()
     }
+
+
+def _profiles_html(*, profiles: list[dict[str, Any]], current_profile_id: str) -> str:
+    """One-page button selector for the active reasoning profile.
+
+    Deliberately self-contained: no JS framework, no external assets, no
+    auth. Works in any browser, including offline laptop builds and
+    minimal environments. This is the user-facing 'button' surface for
+    the charter's Scholar Methodology Profiles and Weight & Trust
+    Engine.
+    """
+
+    scholar_buttons: list[str] = []
+    generic_buttons: list[str] = []
+    for profile in profiles:
+        button_html = _profile_button_html(profile, current_profile_id)
+        if profile.get("is_scholar_methodology"):
+            scholar_buttons.append(button_html)
+        else:
+            generic_buttons.append(button_html)
+
+    scholar_section = ""
+    if scholar_buttons:
+        scholar_section = (
+            "<section><h2>Scholar Methodology</h2>"
+            "<p class=\"section-note\">Methodology modeling — not the actual scholar speaking, "
+            "not a fatwa, not divine certainty. Each profile is a transparent weighting "
+            "pattern you can audit and edit.</p>"
+            "<div class=\"button-grid\">" + "".join(scholar_buttons) + "</div></section>"
+        )
+
+    generic_section = (
+        "<section><h2>Research Modes</h2>"
+        "<p class=\"section-note\">Generic weighting profiles. Pick one for the kind of "
+        "research you're doing right now.</p>"
+        "<div class=\"button-grid\">" + "".join(generic_buttons) + "</div></section>"
+    )
+
+    return f"""<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Halal Jordan — Profiles</title>
+    <style>
+      * {{ box-sizing: border-box; }}
+      body {{
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        margin: 0;
+        padding: 1.5rem;
+        background: #f3ead8;
+        color: #2f271f;
+        line-height: 1.5;
+      }}
+      .container {{ max-width: 64rem; margin: 0 auto; }}
+      header {{ padding: 0.5rem 0 1.5rem; }}
+      h1 {{ margin: 0 0 0.25rem; font-size: 1.75rem; }}
+      header p {{ margin: 0; color: #6c5f4e; }}
+      a.home-link {{ color: #6c5f4e; text-decoration: none; font-size: 0.9rem; }}
+      a.home-link:hover {{ text-decoration: underline; }}
+      h2 {{ margin: 1.75rem 0 0.5rem; font-size: 1.25rem; }}
+      .section-note {{ color: #6c5f4e; font-size: 0.95rem; margin: 0 0 1rem; }}
+      .button-grid {{
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+        gap: 1rem;
+      }}
+      .profile-button {{
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: rgba(255, 250, 241, 0.94);
+        border: 2px solid rgba(120, 95, 60, 0.2);
+        border-radius: 14px;
+        padding: 1rem 1.1rem;
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+        transition: transform 0.08s ease, border-color 0.08s ease, background 0.08s ease;
+      }}
+      .profile-button:hover {{
+        border-color: rgba(120, 95, 60, 0.5);
+        transform: translateY(-1px);
+      }}
+      .profile-button.active {{
+        background: #f6d27a;
+        border-color: #b8862c;
+      }}
+      .profile-title {{
+        font-weight: 700;
+        font-size: 1.1rem;
+        margin: 0 0 0.25rem;
+      }}
+      .profile-meta {{ font-size: 0.85rem; color: #6c5f4e; margin: 0 0 0.5rem; }}
+      .profile-description {{ font-size: 0.95rem; margin: 0; }}
+      .profile-disclaimer {{
+        font-size: 0.8rem;
+        color: #7a5a2a;
+        margin: 0.6rem 0 0;
+        padding: 0.5rem 0.6rem;
+        background: rgba(247, 220, 160, 0.45);
+        border-left: 3px solid #b8862c;
+        border-radius: 4px;
+      }}
+      .badge {{
+        display: inline-block;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        background: #b8862c;
+        color: white;
+        margin-left: 0.4rem;
+        vertical-align: middle;
+        text-transform: uppercase;
+      }}
+      .toast {{
+        position: fixed;
+        bottom: 1rem;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #2f271f;
+        color: white;
+        padding: 0.75rem 1.25rem;
+        border-radius: 999px;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        z-index: 100;
+      }}
+      .toast.show {{ opacity: 1; }}
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Choose a Reasoning Profile</h1>
+        <p>One click switches how Halal Jordan weights evidence. Active profile is highlighted.</p>
+        <p><a class="home-link" href="/">&larr; Back to Halal Jordan</a></p>
+      </header>
+      {scholar_section}
+      {generic_section}
+    </div>
+    <div id="toast" class="toast"></div>
+    <script>
+      (function () {{
+        var toastEl = document.getElementById("toast");
+        function showToast(message) {{
+          toastEl.textContent = message;
+          toastEl.classList.add("show");
+          setTimeout(function () {{ toastEl.classList.remove("show"); }}, 2200);
+        }}
+        document.querySelectorAll(".profile-button").forEach(function (btn) {{
+          btn.addEventListener("click", function () {{
+            var profileId = btn.getAttribute("data-profile-id");
+            if (!profileId) return;
+            btn.disabled = true;
+            fetch("/api/profile/set", {{
+              method: "POST",
+              headers: {{ "Content-Type": "application/json" }},
+              body: JSON.stringify({{ profile_id: profileId }}),
+            }})
+              .then(function (r) {{
+                if (!r.ok) throw new Error("HTTP " + r.status);
+                return r.json();
+              }})
+              .then(function (data) {{
+                showToast("Active profile: " + data.profile_id);
+                document.querySelectorAll(".profile-button").forEach(function (b) {{
+                  b.classList.toggle("active", b.getAttribute("data-profile-id") === profileId);
+                }});
+              }})
+              .catch(function (err) {{ showToast("Failed: " + err.message); }})
+              .finally(function () {{ btn.disabled = false; }});
+          }});
+        }});
+      }})();
+    </script>
+  </body>
+</html>"""
+
+
+def _profile_button_html(profile: dict[str, Any], current_profile_id: str) -> str:
+    """Render one profile as a big button. HTML-escaped throughout."""
+
+    import html as _html
+
+    profile_id = str(profile.get("profile_id", "") or "")
+    is_current = profile_id == current_profile_id
+    active_class = " active" if is_current else ""
+    badge = '<span class="badge">Active</span>' if is_current else ""
+
+    if profile.get("is_scholar_methodology"):
+        title = _html.escape(str(profile.get("scholar_name") or profile_id))
+        description = _html.escape(str(profile.get("methodology_overview") or ""))
+        meta = _html.escape(f"Methodology profile · {profile.get('mode', 'balanced')}")
+    else:
+        title = _html.escape(_humanize_profile_id(profile_id))
+        description = _html.escape(str(profile.get("description") or ""))
+        meta = _html.escape(f"Research profile · {profile.get('mode', 'balanced')}")
+
+    disclaimer_html = ""
+    disclaimer_text = str(profile.get("methodology_disclaimer") or "").strip()
+    if disclaimer_text:
+        disclaimer_html = (
+            f'<p class="profile-disclaimer">{_html.escape(disclaimer_text)}</p>'
+        )
+
+    return (
+        f'<button class="profile-button{active_class}" '
+        f'data-profile-id="{_html.escape(profile_id)}">'
+        f'<p class="profile-title">{title}{badge}</p>'
+        f'<p class="profile-meta">{meta}</p>'
+        f'<p class="profile-description">{description}</p>'
+        f"{disclaimer_html}"
+        "</button>"
+    )
+
+
+def _humanize_profile_id(profile_id: str) -> str:
+    return " ".join(part.capitalize() for part in profile_id.replace("_", " ").split())
 
 
 def _admin_html() -> str:

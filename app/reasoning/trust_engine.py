@@ -149,6 +149,13 @@ class TrustProfile:
     A profile is data, not code. Profiles are loaded from JSON in
     ``config/trust_profiles/`` and are user-extensible. The schema is at
     ``metadata/schemas/trust_profile.schema.json``.
+
+    Scholar methodology profiles are first-class TrustProfiles that
+    additionally carry ``scholar_name``, ``methodology_overview``, and a
+    mandatory ``methodology_disclaimer``. The charter requires that when
+    such a profile is active, the system always discloses that this is
+    methodology modeling — not the actual scholar speaking, not
+    revelation, not divine certainty.
     """
 
     profile_id: str
@@ -166,6 +173,13 @@ class TrustProfile:
     methodology_preferences: Mapping[str, float] = field(default_factory=dict)
     unknown_penalty: float = 0.0
     strictness_threshold: float | None = None
+    # Scholar Embodiment Layer fields (charter section: Scholar
+    # Methodology Profiles). Non-empty for scholar methodology profiles;
+    # empty for generic trust profiles.
+    is_scholar_methodology: bool = False
+    scholar_name: str = ""
+    methodology_overview: str = ""
+    methodology_disclaimer: str = ""
 
     @classmethod
     def neutral(cls, profile_id: str = "default") -> "TrustProfile":
@@ -219,6 +233,9 @@ class TrustBreakdown:
     signals: TrustSignals
     unknowns: tuple[str, ...]
     below_strictness_threshold: bool = False
+    is_scholar_methodology: bool = False
+    scholar_name: str = ""
+    methodology_disclaimer: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -239,6 +256,9 @@ class TrustBreakdown:
             },
             "unknowns": list(self.unknowns),
             "below_strictness_threshold": self.below_strictness_threshold,
+            "is_scholar_methodology": self.is_scholar_methodology,
+            "scholar_name": self.scholar_name,
+            "methodology_disclaimer": self.methodology_disclaimer,
         }
 
 
@@ -484,6 +504,9 @@ def score(
         signals=signals,
         unknowns=unknowns,
         below_strictness_threshold=below_threshold,
+        is_scholar_methodology=profile.is_scholar_methodology,
+        scholar_name=profile.scholar_name,
+        methodology_disclaimer=profile.methodology_disclaimer,
     )
 
 
@@ -519,6 +542,46 @@ def list_profiles(repo_root: Path | None = None) -> tuple[str, ...]:
     return tuple(sorted(ids))
 
 
+def list_profiles_with_metadata(
+    repo_root: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Return per-profile metadata for UI rendering.
+
+    Each entry carries enough information for a one-click profile selector:
+    id, display title, short description, mode, and (for scholar
+    methodology profiles) the scholar name and disclaimer the UI must
+    surface so the charter's disclosure rule is honored.
+    """
+
+    profiles = _load_profiles_cached(str((repo_root or REPO_ROOT).resolve()))
+    entries: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+
+    if "default" not in profiles:
+        neutral = TrustProfile.neutral("default")
+        entries.append(_profile_to_metadata(neutral))
+        seen_ids.add("default")
+
+    for profile_id in sorted(profiles):
+        if profile_id in seen_ids:
+            continue
+        entries.append(_profile_to_metadata(profiles[profile_id]))
+        seen_ids.add(profile_id)
+    return entries
+
+
+def _profile_to_metadata(profile: TrustProfile) -> dict[str, Any]:
+    return {
+        "profile_id": profile.profile_id,
+        "description": profile.description,
+        "mode": profile.mode,
+        "is_scholar_methodology": profile.is_scholar_methodology,
+        "scholar_name": profile.scholar_name,
+        "methodology_overview": profile.methodology_overview,
+        "methodology_disclaimer": profile.methodology_disclaimer,
+    }
+
+
 @lru_cache(maxsize=8)
 def _load_profiles_cached(repo_root: str) -> dict[str, TrustProfile]:
     profile_dir = Path(repo_root) / "config" / "trust_profiles"
@@ -534,6 +597,17 @@ def _load_profiles_cached(repo_root: str) -> dict[str, TrustProfile]:
 
 
 def _profile_from_payload(payload: Mapping[str, Any]) -> TrustProfile:
+    is_scholar_methodology = bool(payload.get("is_scholar_methodology", False))
+    methodology_disclaimer = str(payload.get("methodology_disclaimer", "") or "")
+    # Charter rule: scholar methodology profiles MUST disclose that they
+    # are methodology modeling, not the actual scholar. We refuse to load
+    # such a profile without a disclaimer rather than silently dropping
+    # the disclosure.
+    if is_scholar_methodology and not methodology_disclaimer.strip():
+        raise ValueError(
+            f"scholar methodology profile {payload.get('profile_id')!r} "
+            f"must include a non-empty 'methodology_disclaimer'"
+        )
     return TrustProfile(
         profile_id=str(payload.get("profile_id", "") or ""),
         description=str(payload.get("description", "") or ""),
@@ -562,6 +636,10 @@ def _profile_from_payload(payload: Mapping[str, Any]) -> TrustProfile:
             if payload.get("strictness_threshold") is not None
             else None
         ),
+        is_scholar_methodology=is_scholar_methodology,
+        scholar_name=str(payload.get("scholar_name", "") or ""),
+        methodology_overview=str(payload.get("methodology_overview", "") or ""),
+        methodology_disclaimer=methodology_disclaimer,
     )
 
 

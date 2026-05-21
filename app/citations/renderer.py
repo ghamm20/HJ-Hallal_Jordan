@@ -2,11 +2,70 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from app.citations.formatter import format_evidence_entry, format_source_line
-from app.reasoning.answer_grounding import AnswerEvidenceModel
+from app.reasoning.answer_grounding import AnswerEvidenceModel, GroundedSource
 from app.reasoning.study_path import layer_labels
+
+
+def _active_methodology_disclaimer(
+    evidence_model: AnswerEvidenceModel | None,
+) -> tuple[str, str]:
+    """If any cited source carries a scholar methodology breakdown,
+    return ``(scholar_name, disclaimer)`` for surfacing at the top of
+    the answer.
+
+    The charter requires that when a scholar methodology profile is
+    active, the system always discloses that it is methodology modeling
+    — not the actual scholar speaking, not revelation, not divine
+    certainty. This is the rendering side of that rule.
+    """
+
+    if evidence_model is None:
+        return ("", "")
+    for source in evidence_model.sources or []:
+        breakdown_json = getattr(source, "trust_breakdown_json", "") or ""
+        if not breakdown_json:
+            continue
+        try:
+            breakdown = json.loads(breakdown_json)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(breakdown, dict):
+            continue
+        if not breakdown.get("is_scholar_methodology"):
+            continue
+        disclaimer = str(breakdown.get("methodology_disclaimer") or "").strip()
+        if not disclaimer:
+            continue
+        scholar_name = str(breakdown.get("scholar_name") or "").strip()
+        return (scholar_name, disclaimer)
+    return ("", "")
+
+
+def _prepend_methodology_disclaimer(
+    lines: list[str],
+    evidence_model: AnswerEvidenceModel | None,
+) -> None:
+    scholar_name, disclaimer = _active_methodology_disclaimer(evidence_model)
+    if not disclaimer:
+        return
+    banner = ["Methodology Disclosure"]
+    if scholar_name:
+        banner.append(f"Active profile models the methodology associated with: {scholar_name}.")
+    banner.append(disclaimer)
+    banner.append("")
+    # Insert after greeting (if present) so the disclosure leads the answer.
+    insert_at = 0
+    if lines and lines[0] and not lines[0].startswith("Mode:"):
+        # Skip past greeting + blank line
+        for idx, line in enumerate(lines):
+            if line.startswith("Mode:"):
+                insert_at = idx
+                break
+    lines[insert_at:insert_at] = banner
 
 
 def render_answer(
@@ -133,6 +192,7 @@ def render_answer(
         lines.append("")
         lines.append(f"Evidence Strength: {evidence_strength}")
 
+    _prepend_methodology_disclaimer(lines, evidence_model)
     return "\n".join(lines)
 
 
@@ -223,6 +283,7 @@ def _render_scholar_perspective_answer(
         lines.append("")
         lines.append(f"Evidence Strength: {evidence_strength}")
 
+    _prepend_methodology_disclaimer(lines, evidence_model)
     return "\n".join(lines)
 
 
@@ -355,6 +416,7 @@ def _render_study_path_answer(
         lines.append("")
         lines.append(f"Evidence Strength: {evidence_strength}")
 
+    _prepend_methodology_disclaimer(lines, evidence_model)
     return "\n".join(lines)
 
 

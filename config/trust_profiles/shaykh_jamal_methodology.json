@@ -1,0 +1,41 @@
+{
+  "profile_id": "shaykh_jamal_methodology",
+  "scholar_name": "Shaykh Jamal",
+  "description": "Methodology model emphasizing rigorous hadith authentication and direct primary-text grounding. Boosts sahih and hasan gradings, strong isnads, and corroboration across independent chains. Reduces weight on weakly attested narrations and material whose chain quality is unknown.",
+  "methodology_overview": "Reasons with a hadith-centric, isnad-rigorous lens. Primary texts and classical authorities lead. Modern fatwa material is consulted secondarily. Unknowns are flagged rather than smoothed over.",
+  "methodology_disclaimer": "This profile is methodology modeling, not the scholar speaking. It applies a transparent weighting pattern commonly associated with rigorous hadith-focused scholarship. It is not revelation, not a fatwa, not divine certainty. Edit config/trust_profiles/shaykh_jamal_methodology.json to refine the weights to match a specific scholar's documented preferences.",
+  "is_scholar_methodology": true,
+  "mode": "strict",
+  "authenticity_weights": {
+    "sahih": 0.55,
+    "hasan": 0.22,
+    "daif": -0.55,
+    "mawdu": -2.2
+  },
+  "isnad_strength_multiplier": 0.45,
+  "corroboration_per_count": 0.08,
+  "corroboration_cap": 6,
+  "ijma_weights": {
+    "ijma": 0.3,
+    "majority": 0.12,
+    "minority": -0.06,
+    "isolated": -0.18
+  },
+  "era_weights": {
+    "primary": 0.4,
+    "classical": 0.22,
+    "post_classical": 0.05,
+    "modern": -0.04,
+    "contemporary": -0.08
+  },
+  "source_distance_penalty": 0.22,
+  "scholar_authority_multiplier": 0.18,
+  "madhhab_preferences": {},
+  "methodology_preferences": {
+    "rigorous_isnad": 0.22,
+    "hadith_specialist": 0.22,
+    "salafi_methodology": 0.12
+  },
+  "unknown_penalty": 0.05,
+  "strictness_threshold": -0.5
+}

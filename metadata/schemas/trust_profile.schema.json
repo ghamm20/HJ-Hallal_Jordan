@@ -84,6 +84,23 @@
     "strictness_threshold": {
       "type": ["number", "null"],
       "description": "If set, candidates scoring below this threshold are flagged as below_strictness_threshold so the reranker can filter or hard-downweight them."
+    },
+    "is_scholar_methodology": {
+      "type": "boolean",
+      "default": false,
+      "description": "True if this profile models a specific scholar's methodology. When true, methodology_disclaimer is required (the charter forbids loading a scholar methodology profile without an explicit disclosure that this is modeling, not the scholar speaking)."
+    },
+    "scholar_name": {
+      "type": "string",
+      "description": "Human-readable scholar name to surface in the UI when this methodology profile is active. Empty for non-scholar profiles."
+    },
+    "methodology_overview": {
+      "type": "string",
+      "description": "Short, human-readable summary of the methodology this profile models — what it tends to weight and why. Shown to the user on the profile selector."
+    },
+    "methodology_disclaimer": {
+      "type": "string",
+      "description": "REQUIRED for scholar methodology profiles. Must transparently state that this profile is methodology modeling — not the actual scholar speaking, not revelation, not divine certainty. Surfaced in the UI and in rendered answers whenever this profile is active."
     }
   }
 }

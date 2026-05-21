@@ -1,0 +1,41 @@
+{
+  "profile_id": "dr_umar_methodology",
+  "scholar_name": "Dr. Umar",
+  "description": "Methodology model emphasizing classical traditionalist sources with a balanced consensus-aware posture. Boosts classical and post-classical fiqh authorities, gives modest weight to spiritual guidance material, and rewards positions with strong ijma. Preserves minority opinions rather than silencing them.",
+  "methodology_overview": "Reasons in a traditional, school-grounded manner. Primary texts read through classical commentary and fiqh manuals; consensus and majority positions weighted highly; spiritual and methodology context preserved. Designed for comparative breadth, not aggressive filtering.",
+  "methodology_disclaimer": "This profile is methodology modeling, not the scholar speaking. It applies a transparent weighting pattern commonly associated with classical traditionalist scholarship. It is not revelation, not a fatwa, not divine certainty. Edit config/trust_profiles/dr_umar_methodology.json to refine the weights to match a specific scholar's documented preferences.",
+  "is_scholar_methodology": true,
+  "mode": "balanced",
+  "authenticity_weights": {
+    "sahih": 0.32,
+    "hasan": 0.16,
+    "daif": -0.3,
+    "mawdu": -1.8
+  },
+  "isnad_strength_multiplier": 0.22,
+  "corroboration_per_count": 0.05,
+  "corroboration_cap": 5,
+  "ijma_weights": {
+    "ijma": 0.4,
+    "majority": 0.18,
+    "minority": 0.0,
+    "isolated": -0.08
+  },
+  "era_weights": {
+    "primary": 0.2,
+    "classical": 0.3,
+    "post_classical": 0.25,
+    "modern": 0.02,
+    "contemporary": -0.04
+  },
+  "source_distance_penalty": 0.1,
+  "scholar_authority_multiplier": 0.22,
+  "madhhab_preferences": {},
+  "methodology_preferences": {
+    "classical_usul": 0.22,
+    "traditionalist": 0.2,
+    "spiritual_emphasis": 0.1
+  },
+  "unknown_penalty": 0.02,
+  "strictness_threshold": null
+}
