@@ -97,6 +97,8 @@ class RetrievalDebugResult:
     madhhab_fallback_used: bool = False
     vector_status: dict[str, Any] = field(default_factory=dict)
     timings_ms: dict[str, int] = field(default_factory=dict)
+    trust_profile_id: str = "default"
+    trust_diagnostics: dict[str, Any] = field(default_factory=dict)
 
 
 class RetrievalPipeline:
@@ -261,6 +263,9 @@ class RetrievalPipeline:
         )
         rerank_started = perf_counter()
         _ask_log("[ASK] rerank start")
+        trust_profile_id = str(
+            getattr(self.runtime_config, "trust_profile_id", "default") or "default"
+        )
         reranked = rerank_candidates(
             candidates,
             selected_madhhab=selected_madhhab,
@@ -269,10 +274,15 @@ class RetrievalPipeline:
             top_k=top_k,
             query_intent=query_intent,
             answer_mode=answer_mode,
+            trust_profile_id=trust_profile_id,
         )
         rerank_ms = int((perf_counter() - rerank_started) * 1000)
         _ask_log(f"[ASK] rerank done: {rerank_ms / 1000:.3f}")
         snippets = [self._to_snippet(candidate) for candidate in reranked]
+        trust_diagnostics = _trust_diagnostics(
+            reranked=reranked,
+            trust_profile_id=trust_profile_id,
+        )
         madhhab_diagnostics = _madhhab_retrieval_diagnostics(
             candidates=candidates,
             reranked=reranked,
@@ -314,6 +324,8 @@ class RetrievalPipeline:
                 "prepared_search_load": self._prepared_search_load_ms,
                 "prepared_search_build": self._prepared_search_build_ms,
             },
+            trust_profile_id=trust_profile_id,
+            trust_diagnostics=trust_diagnostics,
         )
 
     def stats(self) -> dict[str, int]:
@@ -333,6 +345,18 @@ class RetrievalPipeline:
             raise ValueError(
                 f"retrieval produced unsupported source_type: {snippet['source_type']}"
             )
+        # Carry the trust breakdown through as a JSON-encoded string so the
+        # snippet contract (dict[str, str]) is preserved. Downstream code that
+        # cares about trust transparency parses _trust_breakdown_json; code
+        # that doesn't is unaffected.
+        trust_breakdown = candidate.get("_trust_breakdown")
+        if trust_breakdown:
+            import json as _json
+            snippet["_trust_breakdown_json"] = _json.dumps(
+                trust_breakdown, ensure_ascii=False
+            )
+            snippet["_trust_profile_id"] = str(trust_breakdown.get("profile_id", ""))
+            snippet["_trust_total"] = str(trust_breakdown.get("total", "0"))
         return snippet
 
     def _retrieve_candidates(
@@ -571,6 +595,62 @@ def _counter_for_candidates(
 
 def _ask_log(message: str) -> None:
     print(message, flush=True)
+
+
+def _trust_diagnostics(
+    *,
+    reranked: list[dict[str, Any]],
+    trust_profile_id: str,
+) -> dict[str, Any]:
+    """Compact diagnostics so admins can verify trust weighting actually fired.
+
+    Reports the active profile, how many of the returned candidates had a
+    non-zero trust contribution, what fraction of structured signals were
+    present across the set (signal coverage), and the breakdown of the
+    top-ranked candidate so weighting can be sanity-checked against the
+    rendered answer.
+    """
+
+    total_candidates = len(reranked)
+    if total_candidates == 0:
+        return {
+            "profile_id": trust_profile_id,
+            "active": trust_profile_id != "default",
+            "candidates_scored": 0,
+            "candidates_with_nonzero_bonus": 0,
+            "signal_coverage": {},
+            "top_candidate_breakdown": None,
+        }
+
+    nonzero = 0
+    signal_observed: dict[str, int] = {}
+    breakdowns: list[dict[str, Any]] = []
+    for candidate in reranked:
+        breakdown = candidate.get("_trust_breakdown") or {}
+        if not isinstance(breakdown, dict):
+            continue
+        breakdowns.append(breakdown)
+        if float(breakdown.get("total", 0.0) or 0.0) != 0.0:
+            nonzero += 1
+        signals = breakdown.get("signals") or {}
+        for name, value in signals.items():
+            if value in (None, "", "unknown", 0, []):
+                continue
+            signal_observed[name] = signal_observed.get(name, 0) + 1
+
+    signal_coverage = {
+        name: round(count / total_candidates, 3)
+        for name, count in sorted(signal_observed.items())
+    }
+
+    return {
+        "profile_id": trust_profile_id,
+        "active": trust_profile_id != "default",
+        "candidates_scored": total_candidates,
+        "candidates_with_nonzero_bonus": nonzero,
+        "signal_coverage": signal_coverage,
+        "top_candidate_breakdown": breakdowns[0] if breakdowns else None,
+    }
 
 
 def _madhhab_retrieval_diagnostics(

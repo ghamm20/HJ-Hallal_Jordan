@@ -143,6 +143,16 @@ class RuntimeConfig(BaseModel):
     tesseract_path: str = ""
     max_retrieval_candidates: int = Field(default=500, ge=10, le=5000)
     rerank_limit: int = Field(default=5, ge=1, le=50)
+    trust_profile_id: str = Field(
+        default="default",
+        description=(
+            "Weight and Trust Engine profile id. 'default' is neutral "
+            "(zero contribution) and preserves baseline reranker behavior. "
+            "Other shipped profiles: hadith_focused, hanafi_heavy, "
+            "strict_classical, exploratory. User-supplied profiles can be "
+            "dropped into config/trust_profiles/ and referenced by id."
+        ),
+    )
     citation_excerpt_length: int = Field(default=180, ge=60, le=500)
     location_tool_max_comparison_sites: int = Field(default=5, ge=2, le=12)
     session_continuity_ttl_minutes: int = Field(default=60, ge=1, le=720)
@@ -213,7 +223,26 @@ class RuntimeConfig(BaseModel):
         self.micro_model_path = self.micro_smart_path
         self.micro_model_name = self.micro_smart_name
         self.micro_model_role = self.micro_smart_role
+        self._validate_trust_profile_id()
         return self
+
+    def _validate_trust_profile_id(self) -> None:
+        # Imported lazily so this module stays importable from minimal contexts
+        # (e.g. config tooling) without requiring the reasoning package.
+        from app.reasoning.trust_engine import list_profiles
+
+        profile_id = str(self.trust_profile_id or "").strip()
+        if not profile_id:
+            self.trust_profile_id = "default"
+            return
+        available = list_profiles()
+        if profile_id not in available:
+            raise ValueError(
+                f"trust_profile_id={profile_id!r} not found. "
+                f"Available profiles: {list(available)}. "
+                f"Drop a JSON file in config/trust_profiles/ to add a new one."
+            )
+        self.trust_profile_id = profile_id
 
     @property
     def micro_model_target(self) -> str:

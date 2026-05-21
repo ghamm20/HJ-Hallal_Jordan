@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
+import json
+from typing import Any, Mapping
 
 from app.citations.display_cleanup import clean_display_excerpt, clean_display_label
 from app.retrieval.metadata_normalizer import format_madhhab_label
@@ -106,6 +107,126 @@ def _source_frame_label(source: Any) -> str:
     if source_classification == "transcript":
         return "Transcript / Teacher Material"
     return fallback
+
+
+def format_trust_line(breakdown: Any) -> str:
+    """Render a compact, human-readable Trust Weighting line.
+
+    Returns an empty string when:
+      - the breakdown is missing or unparseable
+      - the profile is 'default' (neutral — never noisy when nothing happened)
+      - no components carry a non-zero contribution
+
+    Otherwise returns a single line like:
+      ``Trust [hadith_focused]: +0.55 sahih, +0.36 isnad (0.8), -0.18 source_distance = +0.73``
+
+    This is the operationalization of the charter's transparency rule:
+    when the Weight and Trust Engine moves a source, the user can see
+    exactly why.
+    """
+
+    parsed = _parse_breakdown(breakdown)
+    if not parsed:
+        return ""
+
+    profile_id = str(parsed.get("profile_id", "") or "")
+    if profile_id == "default" or not profile_id:
+        return ""
+
+    components = parsed.get("components") or []
+    nonzero_components = [
+        component
+        for component in components
+        if isinstance(component, Mapping)
+        and float(component.get("contribution", 0.0) or 0.0) != 0.0
+    ]
+    if not nonzero_components:
+        return ""
+
+    # Show up to four most-impactful contributions (by absolute value),
+    # preserving sign so the user sees both boosts and penalties.
+    ranked = sorted(
+        nonzero_components,
+        key=lambda c: abs(float(c.get("contribution", 0.0) or 0.0)),
+        reverse=True,
+    )[:4]
+
+    fragments = [_format_trust_fragment(component) for component in ranked]
+    fragments = [fragment for fragment in fragments if fragment]
+    if not fragments:
+        return ""
+
+    total = float(parsed.get("total", 0.0) or 0.0)
+    return f"Trust [{profile_id}]: " + ", ".join(fragments) + f" = {_signed(total)}"
+
+
+def _format_trust_fragment(component: Mapping[str, Any]) -> str:
+    contribution = float(component.get("contribution", 0.0) or 0.0)
+    if contribution == 0.0:
+        return ""
+    signal = str(component.get("signal", "") or "")
+    observed = component.get("observed")
+    label = _trust_signal_label(signal, observed)
+    if not label:
+        return ""
+    return f"{_signed(contribution)} {label}"
+
+
+def _trust_signal_label(signal: str, observed: Any) -> str:
+    if signal == "authenticity_grade":
+        return str(observed or "authenticity")
+    if signal == "ijma_strength":
+        return f"ijma:{observed}"
+    if signal == "era":
+        return f"era:{observed}"
+    if signal == "madhhab":
+        return f"madhhab:{observed}"
+    if signal == "methodology_tag":
+        return f"method:{observed}"
+    if signal == "isnad_strength":
+        try:
+            return f"isnad ({float(observed):.2f})"
+        except (TypeError, ValueError):
+            return "isnad"
+    if signal == "corroboration_count":
+        return f"corroboration (x{observed})"
+    if signal == "source_distance":
+        return f"distance ({observed})"
+    if signal == "scholar_authority":
+        try:
+            return f"scholar_authority ({float(observed):.2f})"
+        except (TypeError, ValueError):
+            return "scholar_authority"
+    if signal == "unknown_signals":
+        if isinstance(observed, list):
+            return f"unknown_signals (x{len(observed)})"
+        return "unknown_signals"
+    return signal or "signal"
+
+
+def _signed(value: float) -> str:
+    if value >= 0:
+        return f"+{value:.2f}"
+    return f"{value:.2f}"
+
+
+def _parse_breakdown(breakdown: Any) -> dict[str, Any] | None:
+    if breakdown is None:
+        return None
+    if isinstance(breakdown, Mapping):
+        return dict(breakdown)
+    if isinstance(breakdown, str):
+        stripped = breakdown.strip()
+        if not stripped:
+            return None
+        try:
+            payload = json.loads(stripped)
+        except (TypeError, ValueError):
+            return None
+        if isinstance(payload, dict):
+            return payload
+        return None
+    return None
 
 
 def _extraction_note(source: Any) -> str:
