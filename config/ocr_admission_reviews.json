@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "reviewed_at": "2026-05-02T00:00:00-04:00",
+  "records": [
+    {
+      "source_path": "data/raw/hadith/ibn_majah/Sunan Ibn Majah Vol. 1 - 1-802.pdf",
+      "status": "admit_with_warnings",
+      "reason": "ocr_reviewed_admit_with_warnings",
+      "notes": [
+        "limited_ocr_pages_reviewed_as_readable",
+        "body_pages_contain_legible_english_hadith_text",
+        "retain_ocr_flags_and_mixed_source_labels"
+      ]
+    },
+    {
+      "source_path": "data/raw/hadith/ibn_majah/Sunan Ibn Majah Vol. 2 - 803-1782.pdf",
+      "status": "admit_with_warnings",
+      "reason": "ocr_reviewed_admit_with_warnings",
+      "notes": [
+        "two_ocr_pages_reviewed_as_readable",
+        "body_pages_contain_legible_english_hadith_text",
+        "retain_ocr_flags_and_mixed_source_labels"
+      ]
+    },
+    {
+      "source_path": "data/raw/hadith/ibn_majah/Sunan Ibn Majah Vol. 3 - 1783-2718.pdf",
+      "status": "admit_with_warnings",
+      "reason": "ocr_reviewed_admit_with_warnings",
+      "notes": [
+        "limited_ocr_pages_reviewed_as_readable",
+        "body_pages_contain_legible_english_hadith_text",
+        "retain_ocr_flags_and_mixed_source_labels"
+      ]
+    },
+    {
+      "source_path": "data/raw/hadith/muwatta/Al-Muwatta of Imam Malik.pdf",
+      "status": "admit_with_warnings",
+      "reason": "ocr_reviewed_admit_with_warnings",
+      "notes": [
+        "single_low_confidence_title_page_does_not_drive_substantive_retrieval",
+        "main_body_remains_machine_extracted",
+        "retain_ocr_flags_and_mixed_source_labels"
+      ]
+    },
+    {
+      "source_path": "data/raw/hadith/muwatta/Muwattaʼ Imam Malik.pdf",
+      "status": "admit_with_warnings",
+      "reason": "ocr_reviewed_admit_with_warnings",
+      "notes": [
+        "single_low_confidence_terminal_page_is_non_substantive",
+        "main_body_remains_machine_extracted",
+        "retain_ocr_flags_and_mixed_source_labels"
+      ]
+    },
+    {
+      "source_path": "data/raw/hadith/nasai/Sunan an-Nasai Vol. 3 - 1819-3086.pdf",
+      "status": "admit_with_warnings",
+      "reason": "ocr_reviewed_admit_with_warnings",
+      "notes": [
+        "limited_ocr_pages_reviewed_as_readable",
+        "body_pages_contain_legible_english_hadith_text",
+        "retain_ocr_flags_and_mixed_source_labels"
+      ]
+    },
+    {
+      "source_path": "data/raw/quran/translations/en_Translation_of_the_Meanings_Quran.pdf",
+      "status": "admit_with_warnings",
+      "reason": "ocr_reviewed_admit_with_warnings",
+      "notes": [
+        "manual_review_confirmed_legible_body_translation_pages",
+        "low_confidence_pages_concentrated_in_front_back_matter",
+        "retain_ocr_flags_and_mixed_source_labels"
+      ]
+    },
+    {
+      "source_path": "data/raw/quran/translations/en_Translation_of_the_Meanings_Quran_english_lang.pdf",
+      "status": "admit_with_warnings",
+      "reason": "ocr_reviewed_admit_with_warnings",
+      "notes": [
+        "two_low_confidence_pages_are_non_substantive_front_back_matter",
+        "main_body_remains_machine_extracted",
+        "retain_ocr_flags_and_mixed_source_labels"
+      ]
+    },
+    {
+      "source_path": "data/raw/quran/translations/english_rwwad.mobile.pdf",
+      "status": "admit_with_warnings",
+      "reason": "ocr_reviewed_admit_with_warnings",
+      "notes": [
+        "low_confidence_pages_are_cover_transliteration_or_terminal_matter",
+        "main_body_remains_machine_extracted",
+        "retain_ocr_flags_and_mixed_source_labels"
+      ]
+    },
+    {
+      "source_path": "data/raw/fiqh/shafii/mutun/Safinat-al-Naja.pdf",
+      "status": "admit_with_warnings",
+      "reason": "ocr_reviewed_admit_with_warnings",
+      "notes": [
+        "manual_review_confirmed_legible_machine_extracted_body_text",
+        "single_low_confidence_ocr_cover_page_is_non_substantive",
+        "retain_ocr_flags_and_mixed_source_labels"
+      ]
+    },
+    {
+      "source_path": "data/raw/fiqh/shafii/other/Minhaj-al-Talibin-English.pdf",
+      "status": "admit_with_warnings",
+      "reason": "ocr_reviewed_admit_with_warnings",
+      "notes": [
+        "manual_review_confirmed_legible_machine_extracted_body_text",
+        "single_low_confidence_ocr_cover_page_is_non_substantive",
+        "retain_ocr_flags_and_mixed_source_labels"
+      ]
+    }
+  ]
+}

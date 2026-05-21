@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://halal-jordan.local/schemas/scholar_profile.schema.json",
+  "title": "Halal Jordan Scholar Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scholar_id",
+    "name",
+    "name_transliterated",
+    "madhhab",
+    "period",
+    "known_works",
+    "methodology_notes",
+    "source_families",
+    "retrieval_tags"
+  ],
+  "properties": {
+    "scholar_id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "name_transliterated": {
+      "type": "string"
+    },
+    "madhhab": {
+      "type": "string"
+    },
+    "period": {
+      "type": "string"
+    },
+    "known_works": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "methodology_notes": {
+      "type": "string"
+    },
+    "source_families": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "retrieval_tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

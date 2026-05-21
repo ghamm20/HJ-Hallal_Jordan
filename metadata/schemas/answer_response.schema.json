@@ -1,0 +1,540 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://halal-jordan.local/schemas/answer_response.schema.json",
+  "title": "Halal Jordan Answer Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "answer_mode",
+    "selected_madhhab",
+    "direct_answer",
+    "citations",
+    "ui_state"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string"
+    },
+    "greeting": {
+      "type": "string"
+    },
+    "answer_mode": {
+      "type": "string",
+      "enum": [
+        "research",
+        "source_only",
+        "compare_views",
+        "scholar_perspective",
+        "quick_answer",
+        "deep_study",
+        "study_path"
+      ]
+    },
+    "selected_madhhab": {
+      "type": "string",
+      "enum": [
+        "hanafi",
+        "shafii",
+        "maliki",
+        "hanbali",
+        "compare_all",
+        "not_specified"
+      ]
+    },
+    "direct_answer": {
+      "type": "string",
+      "description": "In source-only mode this should be minimal framing only."
+    },
+    "madhhab_position": {
+      "type": "string"
+    },
+    "evidence_summary": {
+      "type": "string"
+    },
+    "disagreement_note": {
+      "type": "string"
+    },
+    "uncertainty_note": {
+      "type": "string"
+    },
+    "evidence_strength": {
+      "type": "string",
+      "enum": [
+        "strong",
+        "moderate",
+        "limited",
+        "conflicting",
+        "insufficient"
+      ]
+    },
+    "topic": {
+      "type": "string"
+    },
+    "overview": {
+      "type": "string"
+    },
+    "source_layers": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "quran": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "title",
+              "source_type",
+              "reference"
+            ],
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "source_type": {
+                "type": "string"
+              },
+              "reference": {
+                "type": "string"
+              },
+              "collection": {
+                "type": "string"
+              },
+              "author": {
+                "type": "string"
+              },
+              "madhhab": {
+                "type": "string"
+              },
+              "quote": {
+                "type": "string"
+              },
+              "source_path": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "hadith": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "title",
+              "source_type",
+              "reference"
+            ],
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "source_type": {
+                "type": "string"
+              },
+              "reference": {
+                "type": "string"
+              },
+              "collection": {
+                "type": "string"
+              },
+              "author": {
+                "type": "string"
+              },
+              "madhhab": {
+                "type": "string"
+              },
+              "quote": {
+                "type": "string"
+              },
+              "source_path": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "fiqh": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "title",
+              "source_type",
+              "reference"
+            ],
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "source_type": {
+                "type": "string"
+              },
+              "reference": {
+                "type": "string"
+              },
+              "collection": {
+                "type": "string"
+              },
+              "author": {
+                "type": "string"
+              },
+              "madhhab": {
+                "type": "string"
+              },
+              "quote": {
+                "type": "string"
+              },
+              "source_path": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "tasawwuf": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "title",
+              "source_type",
+              "reference"
+            ],
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "source_type": {
+                "type": "string"
+              },
+              "reference": {
+                "type": "string"
+              },
+              "collection": {
+                "type": "string"
+              },
+              "author": {
+                "type": "string"
+              },
+              "madhhab": {
+                "type": "string"
+              },
+              "quote": {
+                "type": "string"
+              },
+              "source_path": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "scholar_commentary": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "title",
+              "source_type",
+              "reference"
+            ],
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "source_type": {
+                "type": "string"
+              },
+              "reference": {
+                "type": "string"
+              },
+              "collection": {
+                "type": "string"
+              },
+              "author": {
+                "type": "string"
+              },
+              "madhhab": {
+                "type": "string"
+              },
+              "quote": {
+                "type": "string"
+              },
+              "source_path": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "reading_list": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "beginner": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "title",
+              "layer"
+            ],
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "layer": {
+                "type": "string"
+              },
+              "collection": {
+                "type": "string"
+              },
+              "author": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "intermediate": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "title",
+              "layer"
+            ],
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "layer": {
+                "type": "string"
+              },
+              "collection": {
+                "type": "string"
+              },
+              "author": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "advanced": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "title",
+              "layer"
+            ],
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "layer": {
+                "type": "string"
+              },
+              "collection": {
+                "type": "string"
+              },
+              "author": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "lesson_path": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "lesson_title",
+          "objective",
+          "source_anchors",
+          "short_explanation",
+          "practice_prompt"
+        ],
+        "properties": {
+          "lesson_title": {
+            "type": "string"
+          },
+          "objective": {
+            "type": "string"
+          },
+          "source_anchors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "short_explanation": {
+            "type": "string"
+          },
+          "practice_prompt": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "key_terms": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "what_to_avoid": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "madhhab_readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hanafi_ready",
+        "shafi_ready",
+        "maliki_ready",
+        "hanbali_ready"
+      ],
+      "properties": {
+        "hanafi_ready": {
+          "type": "boolean"
+        },
+        "shafi_ready": {
+          "type": "boolean"
+        },
+        "maliki_ready": {
+          "type": "boolean"
+        },
+        "hanbali_ready": {
+          "type": "boolean"
+        }
+      }
+    },
+    "corpus_gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "citations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "source_type",
+          "reference"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string",
+            "enum": [
+              "quran",
+              "hadith",
+              "fiqh_manual",
+              "commentary",
+              "tasawwuf_text",
+              "fatwa",
+              "scholar_transcript",
+              "transcript",
+              "inference"
+            ]
+          },
+          "collection": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "madhhab": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "quote": {
+            "type": "string"
+          },
+          "source_path": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "source_breakdown": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source_type",
+          "count"
+        ],
+        "properties": {
+          "source_type": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "ui_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "greeting_style",
+        "tone_level",
+        "selected_madhhab_visible",
+        "answer_mode_visible"
+      ],
+      "properties": {
+        "greeting_style": {
+          "type": "string",
+          "enum": [
+            "full_islamic",
+            "short",
+            "none"
+          ]
+        },
+        "tone_level": {
+          "type": "string",
+          "enum": [
+            "formal",
+            "formal_warm",
+            "formal_warm_light_humor"
+          ]
+        },
+        "selected_madhhab_visible": {
+          "type": "boolean"
+        },
+        "answer_mode_visible": {
+          "type": "boolean"
+        },
+        "confidence_visible": {
+          "type": "boolean"
+        },
+        "disagreement_visible": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

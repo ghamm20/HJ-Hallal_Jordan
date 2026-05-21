@@ -1,0 +1,24 @@
+/* Halal Jordan frontend asset marker.
+   The main manager UI still carries its in-page design system,
+   while this file guarantees a real browser-served asset path. */
+
+:root {
+  --hj-asset-bundle: "loaded";
+}
+
+html {
+  background: #f7f1e7;
+}
+
+body {
+  background-color: #f7f1e7;
+}
+
+body[data-hj-assets="loaded"] {
+  background-color: #f7f1e7;
+}
+
+.page-shell {
+  isolation: isolate;
+}
+

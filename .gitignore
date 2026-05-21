@@ -1,0 +1,80 @@
+# ---------------------------------------------------------------------------
+# Halal Jordan — repository .gitignore
+#
+# Goal: keep the public repo restricted to source code, schemas, prompts,
+# configuration, and the project charter. Exclude bundled runtimes, model
+# weights, ingested corpora, indexes, logs, and any per-machine state.
+# ---------------------------------------------------------------------------
+
+# --- Heavy artifacts that must never enter the repo ---
+models/
+runtime/
+data/
+logs/
+metadata/classes/
+metadata/source_registry/
+metadata/mappings/
+metadata/taxonomies/
+
+# Update inbox / processed / quarantine areas hold ingested user material
+updates/inbox/
+updates/processed/
+updates/quarantine/
+updates/failed/
+
+# Old version directory (currently empty)
+launchHJ-LAPTOPv2/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+ENV/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Logs and runtime state at any depth ---
+*.log
+*.log.*
+*.pid
+*.lock
+*.sqlite
+*.sqlite-journal
+*.db-journal
+
+# --- Secrets (defense in depth — no secrets are currently expected here) ---
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.json
+credentials.json
+*_secret.json
+*_credentials.json
+
+# --- Local Claude / agent state ---
+.claude/
+.cursor/
+.codex/
+
+# --- Allowlist exceptions ---
+# Schemas are part of the code contract — keep them.
+!metadata/schemas/

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SeekersGuidance Answer Intake Manifest",
+  "type": "object",
+  "required": [
+    "source_name",
+    "provider",
+    "source_type",
+    "source_role_boundary",
+    "authority_layer",
+    "title",
+    "url",
+    "scholar",
+    "category",
+    "summary_snippet",
+    "admission_status",
+    "copyright_status"
+  ],
+  "properties": {
+    "source_name": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "string"
+    },
+    "source_type": {
+      "const": "fatwa"
+    },
+    "source_role_boundary": {
+      "const": "modern_application"
+    },
+    "authority_layer": {
+      "const": "modern_fatwa"
+    },
+    "title": {
+      "type": "string"
+    },
+    "url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "scholar": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string"
+    },
+    "reading_time": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "madhhab_tag": {
+      "type": "string"
+    },
+    "summary_snippet": {
+      "type": "string",
+      "maxLength": 400
+    },
+    "admission_status": {
+      "const": "review_required"
+    },
+    "copyright_status": {
+      "const": "external_reference_only"
+    },
+    "storage_mode": {
+      "const": "metadata_snippet_only"
+    },
+    "provenance_note": {
+      "type": "string"
+    },
+    "fetched_at": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

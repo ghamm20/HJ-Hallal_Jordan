@@ -1,0 +1,1 @@
+"""Halal Jordan application package."""
