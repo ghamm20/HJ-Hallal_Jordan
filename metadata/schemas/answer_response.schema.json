@@ -55,6 +55,31 @@
     "disagreement_note": {
       "type": "string"
     },
+    "disagreement_map": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "description": "Optional structured disagreement map. When present, the renderer surfaces a 'Where Scholars Diverged' section showing the divergence point, the usul principle that caused it, and each position with its evidence priorities. Code never invents this; the model populates it only when it has structured evidence to share.",
+      "properties": {
+        "point": { "type": "string", "description": "What the disagreement is about." },
+        "principle": { "type": "string", "description": "Which principle of usul caused the divergence." },
+        "positions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["label"],
+            "properties": {
+              "label": { "type": "string" },
+              "holders": { "type": "array", "items": { "type": "string" } },
+              "evidence_priorities": { "type": "array", "items": { "type": "string" } },
+              "ruling_summary": { "type": "string" },
+              "citations": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
     "uncertainty_note": {
       "type": "string"
     },

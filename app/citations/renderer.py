@@ -7,7 +7,48 @@ from typing import Any
 
 from app.citations.formatter import format_evidence_entry, format_source_line
 from app.reasoning.answer_grounding import AnswerEvidenceModel, GroundedSource
+from app.reasoning.confidence_taxonomy import classify_confidence, render_confidence_lines
+from app.reasoning.disagreement_map import parse_disagreement_map, render_disagreement_lines
+from app.reasoning.evidence_ladder import classify_sources, render_ladder_lines
 from app.reasoning.study_path import layer_labels
+
+
+def _append_structural_layers(
+    lines: list[str],
+    *,
+    answer: dict[str, Any],
+    evidence_model: AnswerEvidenceModel | None,
+) -> None:
+    """Append the three structural layers — Evidence Ladder, Where
+    Scholars Diverged, Scholarly Confidence — to a rendered answer.
+
+    Each layer is silent if it has nothing to show. The order is
+    deliberate: the ladder shows what the answer rests on, the
+    disagreement map shows where scholars differ on it, and the
+    confidence label sits last as a single epistemic summary.
+    """
+
+    if evidence_model is None:
+        return
+
+    sources = list(evidence_model.sources or [])
+    if sources:
+        ladder = classify_sources(sources)
+        if not ladder.is_empty():
+            lines.append("")
+            lines.extend(render_ladder_lines(ladder, source_formatter=format_source_line))
+
+    disagreement = parse_disagreement_map(answer.get("disagreement_map"))
+    disagreement_lines = render_disagreement_lines(disagreement)
+    if disagreement_lines:
+        lines.append("")
+        lines.extend(disagreement_lines)
+
+    assessment = classify_confidence(evidence_model=evidence_model, answer=answer)
+    confidence_lines = render_confidence_lines(assessment)
+    if confidence_lines:
+        lines.append("")
+        lines.extend(confidence_lines)
 
 
 def _active_methodology_disclaimer(
@@ -192,6 +233,7 @@ def render_answer(
         lines.append("")
         lines.append(f"Evidence Strength: {evidence_strength}")
 
+    _append_structural_layers(lines, answer=answer, evidence_model=evidence_model)
     _prepend_methodology_disclaimer(lines, evidence_model)
     return "\n".join(lines)
 
@@ -283,6 +325,7 @@ def _render_scholar_perspective_answer(
         lines.append("")
         lines.append(f"Evidence Strength: {evidence_strength}")
 
+    _append_structural_layers(lines, answer=answer, evidence_model=evidence_model)
     _prepend_methodology_disclaimer(lines, evidence_model)
     return "\n".join(lines)
 
@@ -416,6 +459,7 @@ def _render_study_path_answer(
         lines.append("")
         lines.append(f"Evidence Strength: {evidence_strength}")
 
+    _append_structural_layers(lines, answer=answer, evidence_model=evidence_model)
     _prepend_methodology_disclaimer(lines, evidence_model)
     return "\n".join(lines)
 
