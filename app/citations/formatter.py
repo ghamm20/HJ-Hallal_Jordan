@@ -44,6 +44,9 @@ def format_evidence_entry(
         lines.append(f"  Authority: {fatwa_authority}")
     if extraction_note:
         lines.append(f"  Extraction: {extraction_note}")
+    trust_line = format_trust_line(getattr(source, "trust_breakdown_json", ""))
+    if trust_line:
+        lines.append(f"  {trust_line}")
     if include_quote and quote:
         lines.append(f'  Quote: "{quote}"')
     return lines

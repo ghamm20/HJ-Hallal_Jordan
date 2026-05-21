@@ -103,6 +103,7 @@ class GroundedSource:
     extraction_status: str
     extraction_quality: str
     scholar_attribution_match: str
+    trust_breakdown_json: str = ""
 
 
 @dataclass(slots=True)
@@ -343,6 +344,7 @@ class AnswerGrounder:
                 extraction_status=str(source.get("extraction_status", "") or ""),
                 extraction_quality=str(source.get("extraction_quality", "") or ""),
                 scholar_attribution_match=str(source.get("scholar_attribution_match", "") or ""),
+                trust_breakdown_json=str(source.get("_trust_breakdown_json", "") or ""),
             )
             assembled_sources.append(entry)
             if entry.evidence_bucket == "primary_evidence":
