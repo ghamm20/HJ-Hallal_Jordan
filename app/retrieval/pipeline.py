@@ -61,6 +61,19 @@ SNIPPET_FIELDS = (
     "ocr_confidence",
     "ocr_confidence_band",
     "text_source_mix",
+    # Collection-enrichment fields (filled by source_enrichment.py during
+    # infer_document_metadata). These let the Evidence Ladder, Trust
+    # Engine, and Confidence Taxonomy read structured signals directly
+    # from the snippet without re-inferring.
+    "era",
+    "hadith_grade",
+    "hadith_grade_source",
+    "scholar_authority",
+    "isnad_strength",
+    "isnad_strength_source",
+    "methodology_tags",
+    "collection_enrichment_applied",
+    "collection_enrichment_provenance",
 )
 
 

@@ -84,6 +84,14 @@ def chunk_documents_with_audit(
                 _chunk_plain_text(document, chunk_size_chars=chunk_size_chars)
             )
 
+    # Apply collection-level enrichment to every chunk. The strict
+    # LoadedDocument dataclass drops fields it doesn't know about, so
+    # enrichment cannot ride on the document — it attaches here, where
+    # the chunk dict is free-form. apply_collection_enrichment never
+    # overrides explicit values, so existing chunk metadata is safe.
+    from app.retrieval.source_enrichment import apply_collection_enrichment
+    raw_chunks = [apply_collection_enrichment(chunk) for chunk in raw_chunks]
+
     filtered_chunks, suppressed_by_reason, suppressed_examples = _filter_junk_chunks(
         raw_chunks,
         suppressed_examples_limit=suppressed_examples_limit,

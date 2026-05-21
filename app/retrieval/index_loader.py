@@ -14,6 +14,7 @@ from app.retrieval.admission import (
     serialize_admission_decision,
 )
 from app.retrieval.metadata_normalizer import normalize_document_metadata
+from app.retrieval.source_enrichment import apply_collection_enrichment as _apply_collection_enrichment
 
 RAW_TEXT_EXTENSIONS = {".txt", ".csv", ".md"}
 NORMALIZED_EXTENSIONS = {".txt", ".csv", ".md", ".json"}
@@ -309,10 +310,12 @@ def infer_document_metadata(
 ) -> dict[str, str | None]:
     normalized = normalize_document_metadata(relative_path, explicit_metadata=explicit_metadata)
     loader_hint = _infer_loader_hint(normalized["source_family"], relative_path)
-    return {
-        **normalized,
-        "loader_hint": loader_hint,
-    }
+    merged = {**normalized, "loader_hint": loader_hint}
+    # Collection-level enrichment attaches era / scholar_authority /
+    # methodology_tags / (conservatively) default_hadith_grade so the
+    # Trust Engine and Evidence Ladder have signals to work with.
+    # Explicit values are never overridden — enrichment is a backstop.
+    return _apply_collection_enrichment(merged)
 
 
 def _infer_loader_hint(source_family: str | None, relative_path: Path) -> str:
