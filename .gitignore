@@ -78,3 +78,7 @@ credentials.json
 # --- Allowlist exceptions ---
 # Schemas are part of the code contract — keep them.
 !metadata/schemas/
+
+# Flight-test scratch output
+flight_test_results.txt
+_preflight_test.ps1

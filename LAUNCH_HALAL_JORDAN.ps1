@@ -13,6 +13,19 @@ $ErrorActionPreference = "Stop"
 
 $Root = $PSScriptRoot
 Set-Location $Root
+
+# --- Offline-first environment (thumbdrive / portable mode) -----------------
+# Halal Jordan ships its own HuggingFace cache at runtime/huggingface/.
+# Setting HF_HOME, HF_HUB_OFFLINE, and TRANSFORMERS_OFFLINE here guarantees
+# that the bundled embedding model is used and no network call is attempted,
+# even if the host has its own ~/.cache/huggingface with different contents.
+$env:HF_HOME = Join-Path $Root "runtime\huggingface"
+$env:HF_HUB_OFFLINE = "1"
+$env:TRANSFORMERS_OFFLINE = "1"
+# Quiet the Windows symlink warning — symlinks are not required for our
+# offline path (we load the model from the snapshot directory directly).
+$env:HF_HUB_DISABLE_SYMLINKS_WARNING = "1"
+
 $RuntimeDir = Join-Path $Root "runtime"
 $LogsDir = Join-Path $Root "logs"
 $StatePath = Join-Path $RuntimeDir "halal-jordan-launch-state.json"
@@ -145,6 +158,64 @@ function Get-ConfigObject {
         return [pscustomobject]@{}
     }
     return $raw | ConvertFrom-Json
+}
+
+function Invoke-PreflightCheck {
+    <#
+    .SYNOPSIS
+        Verify the four critical assets are present and report missing ones
+        before any heavier setup runs.
+
+    .DESCRIPTION
+        The charter requires Halal Jordan run from a thumbdrive with zero
+        cloud dependencies. The four assets that must be on the drive:
+          1. Bundled Python interpreter (runtime/python/python.exe)
+          2. Bundled site-packages       (runtime/site-packages/)
+          3. Bundled HuggingFace model   (runtime/huggingface/models--*)
+          4. Persisted retrieval index   (data/index/chunks.jsonl)
+
+        Returns $true when all four are present. When any is missing,
+        prints a human-readable message and returns $false so the caller
+        can decide whether to abort or proceed with reduced functionality.
+    #>
+    param([string]$ProjectRoot)
+
+    $issues = New-Object System.Collections.Generic.List[string]
+    $checks = @(
+        @{ label = "Bundled Python interpreter"; path = (Join-Path $ProjectRoot "runtime\python\python.exe"); required = $true },
+        @{ label = "Bundled site-packages"; path = (Join-Path $ProjectRoot "runtime\site-packages"); required = $true },
+        @{ label = "Bundled embedding model (HF cache)"; path = (Join-Path $ProjectRoot "runtime\huggingface\models--sentence-transformers--all-MiniLM-L6-v2"); required = $false; note = "Semantic search will fall back to keyword-only." },
+        @{ label = "Persisted retrieval index"; path = (Join-Path $ProjectRoot "data\index\chunks.jsonl"); required = $false; note = "First boot will rebuild from corpus (slower)." }
+    )
+
+    Write-LaunchStatusLine "" "Gray"
+    Write-LaunchStatusLine "Preflight check:" "Cyan"
+    $blocking = $false
+    foreach ($check in $checks) {
+        if (Test-Path $check.path) {
+            Write-LaunchStatusLine ("  [OK]      " + $check.label) "Green"
+        }
+        elseif ($check.required) {
+            Write-LaunchStatusLine ("  [MISSING] " + $check.label + " - REQUIRED") "Red"
+            $issues.Add($check.label)
+            $blocking = $true
+        }
+        else {
+            $note = if ($check.note) { " (" + $check.note + ")" } else { "" }
+            Write-LaunchStatusLine ("  [WARN]    " + $check.label + $note) "Yellow"
+        }
+    }
+    Write-LaunchStatusLine "" "Gray"
+
+    if ($blocking) {
+        Write-LaunchStatusLine "Halal Jordan cannot start. Missing required assets:" "Red"
+        foreach ($issue in $issues) {
+            Write-LaunchStatusLine ("  - " + $issue) "Red"
+        }
+        Write-LaunchStatusLine "Re-download the full project (data + runtime + models) and retry." "Red"
+        return $false
+    }
+    return $true
 }
 
 function Get-PythonLaunchSpec {
@@ -628,6 +699,10 @@ if ($ServerOnly) {
 Write-LaunchLine "Starting system..." "Cyan"
 Write-LaunchLine ("Project root: " + $Root)
 Write-LaunchLine ("Requested launch port: " + $Port + " (" + $SelectedPortSource + ")")
+
+if (-not (Invoke-PreflightCheck -ProjectRoot $Root)) {
+    exit 1
+}
 
 $pythonSpec = Get-PythonLaunchSpec -ProjectRoot $Root
 $bundledPackagePathEnabled = Enable-BundledPackagePath -PythonSpec $pythonSpec

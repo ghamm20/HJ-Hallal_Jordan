@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 from dataclasses import asdict
 from dataclasses import dataclass
 from typing import Any
+
+from app.retrieval.embedding_locator import resolve_embedding_model_path
 
 
 def build_embedding_text(chunk: dict[str, Any]) -> str:
@@ -138,7 +141,12 @@ class LocalEmbedder:
             )
             raise RuntimeError(self._status.reason) from exc
         try:
-            self._model = SentenceTransformer(self.model_name, device=self.device)
+            # Prefer the bundled snapshot path when present — bypasses
+            # the HF cache resolver (which fails offline on Windows
+            # because symlinks are unavailable) and makes the system
+            # genuinely offline-capable from a thumbdrive.
+            local_path = resolve_embedding_model_path(self.model_name)
+            self._model = SentenceTransformer(local_path, device=self.device)
         except Exception as exc:
             self._status = EmbeddingBackendStatus(
                 enabled=True,
