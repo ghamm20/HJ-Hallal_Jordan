@@ -7467,9 +7467,13 @@ def _public_ask(
     from app.reasoning.trust_engine import list_profiles_with_metadata
     from app.retrieval.pipeline import RetrievalPipeline
 
-    # Retrieval pipeline reads trust_profile_id from runtime config and
-    # attaches the breakdown to each snippet automatically.
-    pipeline = RetrievalPipeline(repo_root=repo_root)
+    # Use the ops service's config store as the source of truth for
+    # runtime config. /api/profile/set writes through ops.config_store;
+    # constructing a fresh RetrievalPipeline that loaded config from a
+    # different path (the bug the flight test caught) would leave the
+    # profile change invisible to the next ask.
+    runtime_config = ops.config_store.load_effective()
+    pipeline = RetrievalPipeline(repo_root=repo_root, runtime_config=runtime_config)
     retrieval_question = _build_retrieval_query(question, conversation_context)
     debug = pipeline.retrieve_with_debug(
         retrieval_question,
