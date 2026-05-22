@@ -377,27 +377,49 @@ function Test-PortAvailable {
 }
 
 function Resolve-LaunchPort {
+    <#
+    .SYNOPSIS
+        Find a usable port, preferring $PreferredPort and falling back
+        to the next 9 ports automatically.
+
+    .DESCRIPTION
+        Removes the "stop the other app first" friction for average
+        users — if 8000 is busy, we try 8001-8009. Only throws when
+        every port in the range is taken (in which case something is
+        very wrong, not just one stray dev server).
+    #>
     param(
         [string]$BindHost,
-        [int]$PreferredPort
+        [int]$PreferredPort,
+        [int]$FallbackRange = 9
     )
 
     if (Test-PortAvailable -BindHost $BindHost -PortNumber $PreferredPort) {
         return $PreferredPort
     }
     $occupant = Get-ListeningProcessInfo -Port $PreferredPort
-    Write-LaunchStatusLine ("Port " + $PreferredPort + " is already in use. Stop the other app or set HJ_PORT.") "Red"
-    if ($occupant) {
-        Write-LaunchStatusLine ("Occupying PID: " + $occupant.ProcessId) "Yellow"
-        if ($occupant.ProcessName) {
-            Write-LaunchStatusLine ("Occupying process: " + $occupant.ProcessName) "Yellow"
+    $occupantLabel = if ($occupant -and $occupant.ProcessName) {
+        " (in use by " + $occupant.ProcessName + ", PID " + $occupant.ProcessId + ")"
+    } else { "" }
+    Write-LaunchStatusLine ("Port " + $PreferredPort + " busy" + $occupantLabel + ". Trying alternates...") "Yellow"
+
+    for ($offset = 1; $offset -le $FallbackRange; $offset++) {
+        $candidate = $PreferredPort + $offset
+        if (Test-PortAvailable -BindHost $BindHost -PortNumber $candidate) {
+            Write-LaunchStatusLine ("Using fallback port " + $candidate + ".") "Green"
+            return $candidate
         }
-        if ($occupant.ExecutablePath) {
-            Write-LaunchStatusLine ("Occupying executable: " + $occupant.ExecutablePath) "Yellow"
-        }
-        Write-LaunchStatusLine ("Stop command: Stop-Process -Id " + $occupant.ProcessId) "Yellow"
     }
-    throw "Launch aborted because port $PreferredPort is already in use."
+
+    Write-LaunchStatusLine ("All ports " + $PreferredPort + "-" + ($PreferredPort + $FallbackRange) + " are in use.") "Red"
+    if ($occupant) {
+        if ($occupant.ExecutablePath) {
+            Write-LaunchStatusLine ("First occupant exe: " + $occupant.ExecutablePath) "Yellow"
+        }
+        Write-LaunchStatusLine ("Stop first occupant: Stop-Process -Id " + $occupant.ProcessId) "Yellow"
+    }
+    Write-LaunchStatusLine "Set HJ_PORT to a different port range and retry." "Yellow"
+    throw "Launch aborted: no free port in range $PreferredPort-$($PreferredPort + $FallbackRange)."
 }
 
 function Wait-ForHttpJson {
