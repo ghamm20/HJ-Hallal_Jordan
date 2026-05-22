@@ -125,7 +125,26 @@ def create_app(
         return response
 
     @app.get("/", response_class=HTMLResponse)
-    async def manager_ui() -> HTMLResponse:
+    async def root_ui() -> HTMLResponse:
+        """The default landing page is now the simple /ask surface.
+
+        Charter directive: "current build too much for average user — give
+        me a button". The full chat/workspace UI lives at /workspace for
+        users who need it; the default is now the one-question, one-button
+        public front door.
+        """
+
+        return HTMLResponse(
+            _ask_html(
+                current_profile_id=str(
+                    app.state.ops.config_store.load_effective().trust_profile_id
+                    or "default"
+                ),
+            )
+        )
+
+    @app.get("/workspace", response_class=HTMLResponse)
+    async def workspace_ui() -> HTMLResponse:
         return HTMLResponse(_manager_html(repo_root=root))
 
     @app.get("/login", response_class=HTMLResponse)
@@ -201,10 +220,18 @@ def create_app(
     async def ask_endpoint(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
         """Retrieval-first public ask endpoint.
 
+        Body fields:
+          - question (required): the current question.
+          - selected_madhhab (optional): hanafi/shafii/maliki/hanbali/
+            compare_all/not_specified. Defaults to not_specified.
+          - conversation_context (optional): list of prior questions
+            from the same conversation thread. Used as retrieval-time
+            topic biasing — keeps follow-ups on-topic without
+            fabricating dialogue continuity.
+
         Always performs retrieval; the active trust profile drives the
-        ranking. Returns the rendered plain-text answer plus a structured
-        payload (citations + Evidence Ladder + Confidence Taxonomy) so
-        the page can present whichever shape it prefers.
+        ranking. Returns rendered plain-text + a structured payload
+        (citations + Evidence Ladder + Confidence Taxonomy).
         """
 
         question = str((payload or {}).get("question") or "").strip()
@@ -213,12 +240,23 @@ def create_app(
         selected_madhhab = str(
             (payload or {}).get("selected_madhhab") or "not_specified"
         ).strip().lower() or "not_specified"
+        raw_context = (payload or {}).get("conversation_context") or []
+        if not isinstance(raw_context, list):
+            raw_context = []
+        # Cap at 5 prior questions to keep the retrieval prompt focused;
+        # older context drifts the topic.
+        conversation_context = [
+            str(item).strip()
+            for item in raw_context[-5:]
+            if isinstance(item, (str, int, float)) and str(item).strip()
+        ]
 
         return _public_ask(
             app.state.ops,
             repo_root=root,
             question=question,
             selected_madhhab=selected_madhhab,
+            conversation_context=conversation_context,
         )
 
     @app.post("/api/profile/set")
@@ -7406,6 +7444,7 @@ def _public_ask(
     repo_root: Path,
     question: str,
     selected_madhhab: str,
+    conversation_context: list[str] | None = None,
 ) -> dict[str, Any]:
     """Run retrieval + render an answer using the same structural layers
     the full chat pipeline uses. No LLM call required — works in any
@@ -7414,6 +7453,11 @@ def _public_ask(
     The Trust Engine, Evidence Ladder, Confidence Taxonomy, and (when
     applicable) Methodology Disclosure all surface in the rendered
     output exactly as they would in a synthesized answer.
+
+    Conversation context (a list of prior questions from the same
+    thread) is used as retrieval-time topic biasing only — the answer
+    is still about the CURRENT question. We never fabricate dialogue
+    continuity; the prior questions just keep the retrieval focused.
     """
 
     from app.citations.renderer import render_answer
@@ -7426,8 +7470,9 @@ def _public_ask(
     # Retrieval pipeline reads trust_profile_id from runtime config and
     # attaches the breakdown to each snippet automatically.
     pipeline = RetrievalPipeline(repo_root=repo_root)
+    retrieval_question = _build_retrieval_query(question, conversation_context)
     debug = pipeline.retrieve_with_debug(
-        question,
+        retrieval_question,
         selected_madhhab=selected_madhhab,
         top_k=6,
         answer_mode="research",
@@ -7487,6 +7532,7 @@ def _public_ask(
 
     return {
         "question": question,
+        "retrieval_question": retrieval_question,
         "selected_madhhab": selected_madhhab,
         "rendered_text": rendered_text,
         "profile_id": debug.trust_profile_id,
@@ -7503,7 +7549,38 @@ def _public_ask(
         "confidence": confidence.to_dict() if confidence else None,
         "source_count": len(grounded),
         "trust_diagnostics": debug.trust_diagnostics,
+        "conversation_context_used": list(conversation_context or []),
     }
+
+
+def _build_retrieval_query(question: str, context: list[str] | None) -> str:
+    """Compose a retrieval query that biases toward the conversation
+    topic without burying the current question.
+
+    The current question is what the user wants answered. Prior
+    questions act as soft topic markers — appended in a compact form so
+    BM25 picks up shared terms but the current question still dominates
+    relevance.
+    """
+
+    if not context:
+        return question
+    seen: set[str] = set()
+    topic_words: list[str] = []
+    for prior in context:
+        for word in str(prior).split():
+            normalized = word.strip().lower()
+            if len(normalized) < 4 or normalized in seen:
+                continue
+            seen.add(normalized)
+            topic_words.append(word.strip())
+            if len(topic_words) >= 12:
+                break
+        if len(topic_words) >= 12:
+            break
+    if not topic_words:
+        return question
+    return f"{question} ({' '.join(topic_words)})"
 
 
 def _grounded_source_from_snippet(snippet: dict[str, str]) -> Any:
@@ -7563,10 +7640,13 @@ def _grounded_source_from_snippet(snippet: dict[str, str]) -> Any:
 def _ask_html(*, current_profile_id: str) -> str:
     """Self-contained single-page UI for the public /ask endpoint.
 
-    Big question box, one button, profile chip linking to /profiles, an
-    answer pane that renders the structural layers verbatim. No JS
-    framework, no external assets. Works offline, on phones, on
-    laptops, on tablets.
+    Multi-turn: each Q&A appears as a card; follow-ups stay on the same
+    page and inherit the conversation topic. No JS framework, no
+    external assets. Works offline, on phones, on laptops, on tablets.
+
+    Conversation context (the list of prior questions) is sent on
+    follow-ups to bias retrieval — the answer is still about the
+    current question, not a synthesized dialogue continuation.
     """
 
     import html as _html
@@ -7640,19 +7720,44 @@ def _ask_html(*, current_profile_id: str) -> str:
       }}
       button.primary:hover {{ background: #9d731f; }}
       button.primary:disabled {{ background: #b9b2a4; cursor: progress; }}
-      #answer {{
-        margin-top: 1.5rem;
+      #turns {{ margin-top: 1.25rem; display: grid; gap: 1rem; }}
+      .turn {{
         padding: 1rem 1.25rem;
         background: rgba(255, 252, 246, 0.96);
         border-radius: 14px;
         border: 1px solid rgba(120, 95, 60, 0.2);
+      }}
+      .turn .q {{
+        font-weight: 600;
+        color: #6c5f4e;
+        margin: 0 0 0.5rem;
+        font-size: 0.95rem;
+      }}
+      .turn .meta {{
+        font-size: 0.78rem;
+        color: #9b8d77;
+        margin: 0 0 0.6rem;
+      }}
+      .turn pre {{
+        margin: 0;
         white-space: pre-wrap;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 0.9rem;
+        font-size: 0.88rem;
         line-height: 1.55;
       }}
-      #answer.empty {{ color: #6c5f4e; font-family: inherit; font-style: italic; }}
+      .turn.placeholder pre {{ font-family: inherit; font-style: italic; color: #6c5f4e; }}
       .hint {{ font-size: 0.8rem; color: #6c5f4e; margin-top: 0.25rem; }}
+      .toolbar {{ display: flex; gap: 0.5rem; flex-wrap: wrap; }}
+      button.ghost {{
+        background: transparent;
+        border: 1px solid rgba(120, 95, 60, 0.3);
+        color: #6c5f4e;
+        padding: 0.5rem 0.9rem;
+        border-radius: 999px;
+        font: inherit;
+        cursor: pointer;
+      }}
+      button.ghost:hover {{ border-color: #b8862c; color: #2f271f; }}
     </style>
   </head>
   <body>
@@ -7668,7 +7773,7 @@ def _ask_html(*, current_profile_id: str) -> str:
         </a>
       </header>
       <form id="ask-form">
-        <label for="question">Your question</label>
+        <label for="question" id="question-label">Your question</label>
         <textarea id="question" name="question" placeholder="e.g. What do hadith say about sincerity of intention?"></textarea>
         <div class="row">
           <select id="madhhab" name="madhhab">
@@ -7680,57 +7785,134 @@ def _ask_html(*, current_profile_id: str) -> str:
             <option value="compare_all">Compare all four</option>
           </select>
           <button class="primary" type="submit">Ask</button>
+          <button class="ghost" type="button" id="clear-btn" hidden>Clear conversation</button>
         </div>
         <p class="hint">Retrieval-only mode — works in any environment.
-        Full chat synthesis is at <a href="/">the main UI</a> if you need it.</p>
+        Follow-ups stay on topic without fabricating dialogue continuity.
+        Full chat synthesis is at <a href="/workspace">the workspace</a> if you need it.</p>
       </form>
-      <pre id="answer" class="empty">Your answer will appear here.</pre>
+      <div id="turns">
+        <div class="turn placeholder" id="placeholder">
+          <pre>Your answer will appear here.</pre>
+        </div>
+      </div>
     </div>
     <script>
       (function () {{
         var form = document.getElementById("ask-form");
-        var answerEl = document.getElementById("answer");
+        var turnsEl = document.getElementById("turns");
+        var placeholder = document.getElementById("placeholder");
         var btn = form.querySelector("button.primary");
+        var clearBtn = document.getElementById("clear-btn");
+        var questionLabel = document.getElementById("question-label");
+        var questionInput = document.getElementById("question");
+        var conversation = [];  // list of prior question strings
+
+        function humanizeProfile(id) {{
+          return String(id || "").replace(/_/g, " ").replace(/\\b\\w/g, function (c) {{
+            return c.toUpperCase();
+          }});
+        }}
+
+        function refreshUI() {{
+          if (conversation.length === 0) {{
+            questionLabel.textContent = "Your question";
+            questionInput.placeholder = "e.g. What do hadith say about sincerity of intention?";
+            clearBtn.hidden = true;
+          }} else {{
+            questionLabel.textContent = "Follow up";
+            questionInput.placeholder = "Ask something related, or pivot to a new question.";
+            clearBtn.hidden = false;
+          }}
+        }}
+
+        function appendTurn(question, profileLabel, renderedText, sourceCount, confidenceLabel) {{
+          if (placeholder && placeholder.parentNode) {{
+            placeholder.parentNode.removeChild(placeholder);
+          }}
+          var turn = document.createElement("div");
+          turn.className = "turn";
+
+          var qEl = document.createElement("p");
+          qEl.className = "q";
+          qEl.textContent = question;
+          turn.appendChild(qEl);
+
+          var metaEl = document.createElement("p");
+          metaEl.className = "meta";
+          var bits = [];
+          if (profileLabel) bits.push("Profile: " + profileLabel);
+          if (typeof sourceCount === "number") bits.push(sourceCount + " source" + (sourceCount === 1 ? "" : "s"));
+          if (confidenceLabel) bits.push("Confidence: " + confidenceLabel);
+          metaEl.textContent = bits.join(" · ");
+          turn.appendChild(metaEl);
+
+          var pre = document.createElement("pre");
+          pre.textContent = renderedText || "(no output)";
+          turn.appendChild(pre);
+
+          turnsEl.appendChild(turn);
+          turn.scrollIntoView({{ behavior: "smooth", block: "nearest" }});
+        }}
+
+        clearBtn.addEventListener("click", function () {{
+          conversation = [];
+          turnsEl.innerHTML = "";
+          var ph = document.createElement("div");
+          ph.id = "placeholder";
+          ph.className = "turn placeholder";
+          var pre = document.createElement("pre");
+          pre.textContent = "Your answer will appear here.";
+          ph.appendChild(pre);
+          turnsEl.appendChild(ph);
+          placeholder = ph;
+          refreshUI();
+        }});
+
         form.addEventListener("submit", function (e) {{
           e.preventDefault();
-          var question = document.getElementById("question").value.trim();
+          var question = questionInput.value.trim();
           var madhhab = document.getElementById("madhhab").value;
-          if (!question) {{
-            answerEl.textContent = "Please enter a question.";
-            answerEl.className = "empty";
-            return;
-          }}
+          if (!question) return;
           btn.disabled = true;
           var oldText = btn.textContent;
           btn.textContent = "Thinking…";
-          answerEl.textContent = "Searching local sources…";
-          answerEl.className = "empty";
+
           fetch("/api/ask", {{
             method: "POST",
             headers: {{ "Content-Type": "application/json" }},
-            body: JSON.stringify({{ question: question, selected_madhhab: madhhab }}),
+            body: JSON.stringify({{
+              question: question,
+              selected_madhhab: madhhab,
+              conversation_context: conversation.slice(),
+            }}),
           }})
             .then(function (r) {{
               if (!r.ok) return r.text().then(function (t) {{ throw new Error(t || ("HTTP " + r.status)); }});
               return r.json();
             }})
             .then(function (data) {{
-              answerEl.textContent = data.rendered_text || "(no output)";
-              answerEl.className = "";
+              var profileLabel = humanizeProfile(data.profile_id || "");
+              var confLabel = data.confidence ? data.confidence.label : "";
+              appendTurn(question, profileLabel, data.rendered_text, data.source_count, confLabel);
+              conversation.push(question);
               if (data.profile_id) {{
-                var label = data.profile_id.replace(/_/g, " ").replace(/\\b\\w/g, function (c) {{ return c.toUpperCase(); }});
-                document.getElementById("profile-label").textContent = label;
+                document.getElementById("profile-label").textContent = profileLabel;
               }}
+              questionInput.value = "";
+              refreshUI();
             }})
             .catch(function (err) {{
-              answerEl.textContent = "Error: " + (err.message || err);
-              answerEl.className = "empty";
+              appendTurn(question, "", "Error: " + (err.message || err), null, "");
             }})
             .finally(function () {{
               btn.disabled = false;
               btn.textContent = oldText;
+              questionInput.focus();
             }});
         }});
+
+        refreshUI();
       }})();
     </script>
   </body>
