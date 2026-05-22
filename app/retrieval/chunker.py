@@ -90,7 +90,11 @@ def chunk_documents_with_audit(
     # the chunk dict is free-form. apply_collection_enrichment never
     # overrides explicit values, so existing chunk metadata is safe.
     from app.retrieval.source_enrichment import apply_collection_enrichment
-    raw_chunks = [apply_collection_enrichment(chunk) for chunk in raw_chunks]
+    from app.retrieval.inline_grading import apply_inline_grading
+    raw_chunks = [
+        apply_inline_grading(apply_collection_enrichment(chunk))
+        for chunk in raw_chunks
+    ]
 
     filtered_chunks, suppressed_by_reason, suppressed_examples = _filter_junk_chunks(
         raw_chunks,

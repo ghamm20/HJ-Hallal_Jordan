@@ -40,6 +40,7 @@ import time
 from pathlib import Path
 from typing import Iterable
 
+from app.retrieval.inline_grading import apply_inline_grading
 from app.retrieval.source_enrichment import apply_collection_enrichment
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -84,7 +85,7 @@ def refresh_chunks(
                 # Pass through unparseable lines untouched to avoid data loss
                 dst.write(line + "\n")
                 continue
-            enriched = apply_collection_enrichment(chunk)
+            enriched = apply_inline_grading(apply_collection_enrichment(chunk))
             if enriched != chunk:
                 modified += 1
                 for field in enriched.get("collection_enrichment_applied", []):
